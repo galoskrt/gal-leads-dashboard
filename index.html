@@ -229,6 +229,7 @@ tbody td{padding:11px 10px;vertical-align:middle}
     <option value="week">השבוע</option>
   </select>
   <button class="btn btn-outline btn-sm" onclick="syncNow()" title="סנכרן עכשיו">🔄</button>
+  <button class="btn btn-outline btn-sm" onclick="manualMigrate()" title="שחזר נתונים מגיבוי ישן" style="background:#fff3cd;border-color:#ffc107">♻️ שחזר</button>
   <button class="btn btn-outline btn-sm" onclick="exportCSV()">📥 CSV</button>
   <button class="btn btn-outline btn-sm" onclick="reqNotif()" title="הפעל התראות">🔔</button>
 </div>
@@ -482,12 +483,36 @@ function logout(){
 // ═══════════════════════════════════════════════
 // DATA
 // ═══════════════════════════════════════════════
+async function migrateGL2(){
+  try{
+    const old=JSON.parse(localStorage.getItem('gl2')||'[]');
+    if(!old.length)return false;
+    const hasEdits=old.some(l=>l.status&&l.status!=='new'||l.notes||l.doc||l.remAt);
+    if(!hasEdits)return false;
+    old.forEach(o=>{
+      const idx=leads.findIndex(l=>l.id===o.id||l.phone===o.phone);
+      if(idx>=0){
+        if(o.status&&o.status!=='new')leads[idx].status=o.status;
+        if(o.notes)leads[idx].notes=o.notes;
+        if(o.doc)leads[idx].doc=o.doc;
+        if(o.remAt)leads[idx].remAt=o.remAt;
+        if(o.remNote)leads[idx].remNote=o.remNote;
+        if(o.history&&o.history.length)leads[idx].history=o.history;
+      } else { leads.push(o); }
+    });
+    await saveData(true);
+    localStorage.removeItem('gl2');
+    return true;
+  }catch(e){console.warn('Migration failed',e);return false;}
+}
 async function loadData(){
   try{
     const raw=await ghGet();
-    if(raw==='init'){leads=[];seedWP();await saveData(true);return}
-    leads=await dec(raw,sessionPass);
+    if(raw==='init'){leads=[];seedWP();await saveData(true);}
+    else{leads=await dec(raw,sessionPass);}
   }catch(e){leads=[];seedWP();console.warn('Load failed',e);}
+  const migrated=await migrateGL2();
+  if(migrated)toast('✅ הנתונים הישנים שוחזרו בהצלחה!',6000);
 }
 function scheduleSave(){
   if(saveTimer)clearTimeout(saveTimer);
@@ -763,6 +788,28 @@ function fmtDt(iso){if(!iso)return'—';const d=new Date(iso);return d.toLocaleD
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 function bgClose(e,id){if(e.target.id===id)document.getElementById(id).classList.remove('open')}
 let toastT=null;
+async function manualMigrate(){
+  const old=JSON.parse(localStorage.getItem('gl2')||'[]');
+  if(!old.length){toast('⚠️ לא נמצא גיבוי ישן בדפדפן זה',5000);return;}
+  const edited=old.filter(l=>l.status&&l.status!=='new'||l.notes||l.doc||l.remAt);
+  if(!edited.length){toast('⚠️ כל הנתונים בגיבוי עם סטטוס "ליד חדש" — אין מה לשחזר',5000);return;}
+  if(!confirm(`נמצאו ${edited.length} לידים עם נתונים ששוחזרו.\nלהחיל על הדשבורד?`))return;
+  old.forEach(o=>{
+    const idx=leads.findIndex(l=>l.id===o.id||l.phone===o.phone);
+    if(idx>=0){
+      if(o.status)leads[idx].status=o.status;
+      if(o.notes)leads[idx].notes=o.notes;
+      if(o.doc)leads[idx].doc=o.doc;
+      if(o.remAt)leads[idx].remAt=o.remAt;
+      if(o.remNote)leads[idx].remNote=o.remNote;
+      if(o.history&&o.history.length)leads[idx].history=o.history;
+    } else { leads.push(o); }
+  });
+  await saveData(true);
+  render();
+  localStorage.removeItem('gl2');
+  toast(`✅ שוחזרו ${edited.length} לידים בהצלחה`,6000);
+}
 function toast(msg,dur=4000){document.getElementById('toastTxt').textContent=msg;document.getElementById('toast').classList.add('show');if(toastT)clearTimeout(toastT);toastT=setTimeout(closeToast,dur);}
 function closeToast(){document.getElementById('toast').classList.remove('show')}
 
