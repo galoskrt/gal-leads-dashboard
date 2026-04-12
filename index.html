@@ -429,8 +429,9 @@ tbody td{padding:12px 11px;vertical-align:middle}
 // ═══════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════
-const EXPECTED_USER='galharush46@gmail.com';
-const EXPECTED_HASH='d4f7d592aaa07133384d86689c16f37755ca854c0ef04b3a40183fe3dabe3a06';
+const USERS=[
+  {email:'galharush46@gmail.com',hash:'d4f7d592aaa07133384d86689c16f37755ca854c0ef04b3a40183fe3dabe3a06',name:'גל'},
+];
 const GH_TOKEN=[103,104,112,95,81,97,116,100,74,77,108,80,86,105,56,48,105,107,122,116,54,84,49,90,89,81,112,80,122,99,79,56,50,76,49,83,53,112,113,77].map(c=>String.fromCharCode(c)).join('');
 const REPO='galoskrt/gal-leads-dashboard';
 const DATA_FILE='data.enc';
@@ -494,9 +495,9 @@ async function doLogin(){
   const btn=document.getElementById('loginBtn');
   err.textContent='';
   if(!user||!pass){err.textContent='נא למלא שם משתמש וסיסמה';return}
-  if(user!==EXPECTED_USER.toLowerCase()){err.textContent='שם משתמש שגוי';return}
   const h=await sha256hex(pass);
-  if(h!==EXPECTED_HASH){err.textContent='סיסמה שגויה';return}
+  const match=USERS.find(u=>u.email.toLowerCase()===user&&u.hash===h);
+  if(!match){err.textContent='שם משתמש או סיסמה שגויים';return}
   btn.disabled=true; info.textContent='טוען נתונים...';
   try{
     sessionPass=pass;
