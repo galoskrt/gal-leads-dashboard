@@ -695,6 +695,23 @@ const ST={
   irrelevant:{l:'לא רלוונטי',c:'s-irrelevant'},
   invalid:{l:'מספר לא תקין',c:'s-invalid'},
 };
+// סדר עדיפויות — 1 = הכי חשוב
+const ST_PRI={
+  relevant:1,
+  hot_fu:2,
+  meeting:3,
+  proposal:4,
+  quest:5,
+  cold_fu:6,
+  new:7,
+  no1:8,
+  no2:9,
+  no3:10,
+  no4:11,
+  won:12,
+  irrelevant:13,
+  invalid:14,
+};
 
 // ═══════════════════════════════════════════════
 // RENDER
@@ -708,7 +725,16 @@ function getFiltered(){
     if(st&&l.status!==st)return false;
     if(fr){const rs=remSt(l);if(fr==='today'&&rs!=='due')return false;if(fr==='overdue'&&rs!=='overdue')return false;if(fr==='week'&&!['due','week'].includes(rs))return false;}
     return true;
-  }).sort((a,b)=>{let av=a[srt.k]||'',bv=b[srt.k]||'';if(typeof av==='string')av=av.toLowerCase();if(typeof bv==='string')bv=bv.toLowerCase();return av<bv?srt.d:av>bv?-srt.d:0;});
+  }).sort((a,b)=>{
+    // מיון לפי עדיפות סטטוס תמיד ראשון
+    const pa=ST_PRI[a.status]??99, pb=ST_PRI[b.status]??99;
+    if(pa!==pb)return pa-pb;
+    // בתוך אותו סטטוס — לפי העמודה שנבחרה
+    let av=a[srt.k]||'',bv=b[srt.k]||'';
+    if(typeof av==='string')av=av.toLowerCase();
+    if(typeof bv==='string')bv=bv.toLowerCase();
+    return av<bv?srt.d:av>bv?-srt.d:0;
+  });
 }
 function render(){
   renderStats();
