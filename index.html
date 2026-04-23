@@ -625,20 +625,28 @@ async function loadData(){
   if(merged>0){scheduleSave();toast(`🔁 מוזגו ${merged} כניסות כפולות לפי טלפון`,5000);}
 }
 
+function leadScore(l){
+  // Higher = more complete/important lead to keep
+  return (l.notes||'').length*3
+    +(l.history||[]).length*5
+    +(l.doc?10:0)
+    +(l.status&&l.status!=='new'?8:0)
+    +(l.business||'').length
+    +new Date(l.updatedAt||0).getTime()/1e12;
+}
 function deduplicateByPhone(){
   const phoneMap={};
   let mergedCount=0;
-  // Group by normalized phone
   for(const l of leads){
     const p=(l.phone||'').replace(/\D/g,'');
     if(!p)continue;
     if(!phoneMap[p])phoneMap[p]=[];
     phoneMap[p].push(l);
   }
-  for(const [phone,group] of Object.entries(phoneMap)){
+  for(const group of Object.values(phoneMap)){
     if(group.length<2)continue;
-    // Sort: oldest first (keep first, merge rest into it)
-    group.sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt));
+    // Keep the most complete lead
+    group.sort((a,b)=>leadScore(b)-leadScore(a));
     const keeper=group[0];
     if(!keeper.history)keeper.history=[];
     if(!keeper.returnsCount)keeper.returnsCount=0;
@@ -646,7 +654,7 @@ function deduplicateByPhone(){
       const dup=group[i];
       keeper.returnsCount++;
       keeper.history.unshift({
-        date:(dup.createdAt||'').slice(0,10)||new Date().toISOString().slice(0,10),
+        date:(dup.createdAt||'').slice(0,10)||nowIso().slice(0,10),
         res:'חזר',
         note:`השאיר פרטים שוב (פעם ${keeper.returnsCount+1}) — מוזג מ-${dup.id}`
       });
@@ -655,11 +663,6 @@ function deduplicateByPhone(){
       mergedCount++;
     }
   }
-  // Remove duplicates from leads array
-  leads=leads.filter(l=>!deletedIds.has(l.id)||l.returnsCount>0||
-    !([...deletedIds].some(did=>did===l.id&&leads.find(x=>x.id!==l.id&&(x.phone||'').replace(/\D/g,'')===(l.phone||'').replace(/\D/g,'')&&x.returnsCount>=0)))
-  );
-  // Cleaner: just filter out any lead whose id is in deletedIds
   leads=leads.filter(l=>!deletedIds.has(l.id));
   return mergedCount;
 }
