@@ -505,7 +505,7 @@ const WP_API='https://dg-gal.online/wp-json/elementor/v1/form-submissions';
 // ═══════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════
-let leads=[], eid=null, waLid=null;
+let leads=[], deletedIds=new Set(), eid=null, waLid=null;
 let srt={k:'createdAt',d:-1};
 let sessionPass=null, fileSha=null;
 let saveTimer=null, syncInt=null;
@@ -610,9 +610,13 @@ async function migrateGL2(){
 async function loadData(){
   try{
     const raw=await ghGet();
-    if(raw==='init'){leads=[];seedWP();await saveData(true);}
-    else{leads=await dec(raw,sessionPass);}
-  }catch(e){leads=[];seedWP();console.warn('Load failed',e);}
+    if(raw==='init'){leads=[];deletedIds=new Set();seedWP();await saveData(true);}
+    else{
+      const parsed=await dec(raw,sessionPass);
+      if(Array.isArray(parsed)){leads=parsed;deletedIds=new Set();}
+      else{leads=parsed.leads||[];deletedIds=new Set(parsed.deletedIds||[]);}
+    }
+  }catch(e){leads=[];deletedIds=new Set();seedWP();console.warn('Load failed',e);}
   const migrated=await migrateGL2();
   if(migrated)toast('✅ הנתונים הישנים שוחזרו בהצלחה!',6000);
 }
@@ -623,7 +627,11 @@ function scheduleSave(){
 async function saveData(now=false){
   if(!sessionPass)return;
   document.getElementById('savingEl').classList.add('show');
-  try{const e2=await enc(leads,sessionPass);await ghPut(e2);updateSyncTime();}
+  try{
+    const payload={leads,deletedIds:[...deletedIds]};
+    const e2=await enc(payload,sessionPass);
+    await ghPut(e2);updateSyncTime();
+  }
   catch(er){console.error('Save failed',er);}
   document.getElementById('savingEl').classList.remove('show');
 }
@@ -663,7 +671,7 @@ async function syncWP(){
     const j=await r.json(); let added=0;
     for(const d of(j.data||[])){
       const wpId=d.id+'wp';
-      if(leads.find(l=>l.id===wpId))continue;
+      if(leads.find(l=>l.id===wpId)||deletedIds.has(wpId))continue;
       const r2=await fetch(`${WP_API}/${d.id}`,{headers:{'Authorization':`Basic ${WP_CREDS}`}});
       if(!r2.ok)continue;
       const d2=(await r2.json()).data, vals={};
@@ -832,6 +840,7 @@ function saveLead(){
 }
 function delLead(){
   if(!eid||!confirm('למחוק לצמיתות?'))return;
+  deletedIds.add(eid);
   leads=leads.filter(l=>l.id!==eid);
   closeLead();render();scheduleSave();
 }
