@@ -299,6 +299,7 @@ tbody td{padding:12px 11px;vertical-align:middle}
   <button class="btn btn-outline btn-sm" onclick="syncNow()" title="סנכרן עכשיו">🔄</button>
   <button class="btn btn-outline btn-sm" onclick="manualMigrate()" title="שחזר נתונים מגיבוי ישן" style="background:#fff3cd;border-color:#ffc107">♻️ שחזר</button>
   <button class="btn btn-outline btn-sm" onclick="exportCSV()">📥 CSV</button>
+  <button class="btn btn-outline btn-sm" onclick="undoSnapshot()" title="שחזור למצב לפני 24 שעות" style="border-color:rgba(255,144,0,.5);color:var(--orange)">↩ UNDO</button>
   <button class="btn btn-outline btn-sm" onclick="reqNotif()" title="הפעל התראות">🔔</button>
 </div>
 
@@ -501,6 +502,7 @@ const USERS=[
 const GH_TOKEN=[103,104,112,95,81,97,116,100,74,77,108,80,86,105,56,48,105,107,122,116,54,84,49,90,89,81,112,80,122,99,79,56,50,76,49,83,53,112,113,77].map(c=>String.fromCharCode(c)).join('');
 const REPO='galoskrt/gal-leads-dashboard';
 const DATA_FILE='data.enc';
+const SNAP_FILE='snapshots.enc';
 const WP_CREDS=btoa('galharush46@gmail.com:mNE3 9fy1 0t1c XYeW AvYg t9xr');
 const WP_API='https://dg-gal.online/wp-json/elementor/v1/form-submissions';
 
@@ -509,8 +511,9 @@ const WP_API='https://dg-gal.online/wp-json/elementor/v1/form-submissions';
 // ═══════════════════════════════════════════════
 let leads=[], deletedIds=new Set(), eid=null, waLid=null;
 let srt={k:'createdAt',d:-1};
-let sessionPass=null, fileSha=null;
+let sessionPass=null, fileSha=null, snapSha=null;
 let saveTimer=null, syncInt=null;
+let snaps=[];
 
 // ═══════════════════════════════════════════════
 // CRYPTO
@@ -623,6 +626,9 @@ async function loadData(){
   if(migrated)toast('✅ הנתונים הישנים שוחזרו בהצלחה!',6000);
   const merged=deduplicateByPhone();
   if(merged>0){scheduleSave();toast(`🔁 מוזגו ${merged} כניסות כפולות לפי טלפון`,5000);}
+  // Load snapshots: localStorage first, fallback to GitHub
+  try{const ls=localStorage.getItem('gal_snaps');if(ls)snaps=JSON.parse(ls);}catch(e){}
+  if(!snaps.length)await loadSnapsFromGH();
 }
 
 function leadScore(l){
@@ -681,6 +687,58 @@ async function saveData(now=false){
   catch(er){console.error('Save failed',er);}
   document.getElementById('savingEl').classList.remove('show');
 }
+// ═══════════════════════════════════════════════
+// SNAPSHOTS (24H UNDO)
+// ═══════════════════════════════════════════════
+function takeSnapshot(){
+  if(!sessionPass||!leads.length)return;
+  const now=Date.now();
+  snaps=snaps.filter(s=>now-s.ts<25*60*60*1000);
+  snaps.push({ts:now,leads:JSON.parse(JSON.stringify(leads)),deletedIds:[...deletedIds]});
+  if(snaps.length>25)snaps=snaps.slice(-25);
+  try{localStorage.setItem('gal_snaps',JSON.stringify(snaps));}catch(e){console.warn('Snap localStorage failed',e);}
+}
+async function saveSnapsToGH(){
+  if(!sessionPass||!snaps.length)return;
+  try{
+    const e2=await enc(snaps,sessionPass);
+    const b64=btoa(unescape(encodeURIComponent(e2)));
+    const body={message:'snapshots',content:b64};
+    if(snapSha)body.sha=snapSha;
+    const r=await fetch(`https://api.github.com/repos/${REPO}/contents/${SNAP_FILE}`,{method:'PUT',headers:{'Authorization':`Bearer ${GH_TOKEN}`,'Accept':'application/vnd.github+json','Content-Type':'application/json'},body:JSON.stringify(body)});
+    const j=await r.json();
+    if(j.content?.sha)snapSha=j.content.sha;
+  }catch(e){console.warn('Snap GH save failed',e);}
+}
+async function loadSnapsFromGH(){
+  try{
+    const r=await fetch(`https://api.github.com/repos/${REPO}/contents/${SNAP_FILE}`,{headers:{'Authorization':`Bearer ${GH_TOKEN}`,'Accept':'application/vnd.github+json'}});
+    if(!r.ok)return;
+    const j=await r.json();
+    snapSha=j.sha;
+    const raw=atob(j.content.replace(/\n/g,''));
+    const parsed=await dec(raw,sessionPass);
+    if(Array.isArray(parsed))snaps=parsed;
+  }catch(e){console.warn('Snap GH load failed',e);}
+}
+async function undoSnapshot(){
+  if(!snaps.length){toast('⚠️ אין גיבוי זמין — המתן שעה לאחר הכניסה');return;}
+  const target=Date.now()-24*60*60*1000;
+  let best=snaps[0];
+  let bestDiff=Math.abs(snaps[0].ts-target);
+  for(const s of snaps){
+    const diff=Math.abs(s.ts-target);
+    if(diff<bestDiff){bestDiff=diff;best=s;}
+  }
+  const d=new Date(best.ts);
+  const label=d.toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'})+' '+d.toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit'});
+  if(!confirm(`שחזור למצב מ-${label}?\n\nכל השינויים מאז יימחקו.`))return;
+  leads=JSON.parse(JSON.stringify(best.leads));
+  deletedIds=new Set(best.deletedIds||[]);
+  await saveData(true);
+  render();
+  toast(`↩ שוחזר למצב מ-${label}`,5000);
+}
 function updateSyncTime(){
   const t=new Date().toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'});
   document.getElementById('syncTime').textContent='סונכרן '+t;
@@ -705,6 +763,9 @@ async function syncNow(){
 function startSync(){
   if(syncInt)clearInterval(syncInt);
   syncInt=setInterval(syncNow,5*60*1000);
+  setTimeout(takeSnapshot,5000); // first snapshot shortly after login
+  setInterval(takeSnapshot,60*60*1000); // hourly to localStorage
+  setInterval(saveSnapsToGH,6*60*60*1000); // every 6h to GitHub
 }
 
 // ═══════════════════════════════════════════════
