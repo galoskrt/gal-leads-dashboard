@@ -108,6 +108,8 @@ tbody td{padding:12px 11px;vertical-align:middle}
 
 /* ── BADGES ── */
 .badge{display:inline-block;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;letter-spacing:.02em}
+.returns-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;background:rgba(255,144,0,.15);color:#FF9000;border:1px solid rgba(255,144,0,.35);margin-right:6px;vertical-align:middle;cursor:default}
+.returns-badge::before{content:'↩';font-size:10px}
 .s-new{background:rgba(177,59,255,.15);color:#d494ff;border:1px solid rgba(177,59,255,.3)}
 .s-no1,.s-no2,.s-no3,.s-no4{background:rgba(255,77,109,.12);color:#ff8099;border:1px solid rgba(255,77,109,.25)}
 .s-cold-fu{background:rgba(100,160,255,.1);color:#80b8ff;border:1px solid rgba(100,160,255,.2)}
@@ -677,7 +679,17 @@ async function syncWP(){
       const d2=(await r2.json()).data, vals={};
       (d2.values||[]).forEach(v=>{vals[v.key]=v.value});
       const src=d2.referer?.includes('utm_source=fb')?'FB ADS':d2.referer?.includes('utm_source=ig')?'Instagram ADS':'אחר';
-      leads.unshift({id:wpId,name:vals['name']||'',phone:vals['field_9378345']||'',business:vals['field_ba3a5d5']||'',source:src,status:'new',doc:'',notes:'',remAt:'',remNote:'',history:[],createdAt:d2.created_at||nowIso(),updatedAt:nowIso()});
+      const newPhone=(vals['field_9378345']||'').replace(/\D/g,'');
+      const existing=newPhone?leads.find(l=>l.phone&&l.phone.replace(/\D/g,'')===newPhone):null;
+      if(existing){
+        existing.returnsCount=(existing.returnsCount||0)+1;
+        existing.updatedAt=nowIso();
+        if(!existing.history)existing.history=[];
+        existing.history.unshift({date:nowIso().slice(0,10),res:'חזר',note:`השאיר פרטים שוב (פעם ${existing.returnsCount+1}) — WP ID: ${d.id}`});
+        deletedIds.add(wpId);
+      } else {
+        leads.unshift({id:wpId,name:vals['name']||'',phone:vals['field_9378345']||'',business:vals['field_ba3a5d5']||'',source:src,status:'new',doc:'',notes:'',remAt:'',remNote:'',history:[],returnsCount:0,createdAt:d2.created_at||nowIso(),updatedAt:nowIso()});
+      }
       added++;
     }
     if(added){render();scheduleSave();toast(`✅ ${added} לידים חדשים`)}
@@ -761,7 +773,7 @@ function render(){
     const waBtn=`<button class="btn btn-wa btn-sm" style="padding:5px 9px;font-size:13px" onclick="event.stopPropagation();openWA('${l.id}')">💬</button>`;
     return`<tr onclick="openLead('${l.id}')">
       <td data-label="#">${rows.length-i}</td>
-      <td data-label="שם"><b>${esc(l.name)}</b>${l.phone?`<br><span style="font-size:11px;color:var(--text2)">${esc(l.phone)}</span>`:''}</td>
+      <td data-label="שם"><b>${esc(l.name)}</b>${l.returnsCount>0?`<span class="returns-badge" title="השאיר פרטים ${l.returnsCount+1} פעמים">×${l.returnsCount+1}</span>`:''}<br><span style="font-size:11px;color:var(--text2)">${esc(l.phone||'')}</span></td>
       <td data-label="טלפון" style="direction:ltr;text-align:right">${esc(l.phone||'—')}</td>
       <td data-label="תחום" style="font-size:12px;color:var(--text2)">${esc(l.business||'—')}</td>
       <td data-label="סטטוס"><span class="badge ${ST[l.status]?.c||'s-new'}">${ST[l.status]?.l||l.status}</span></td>
@@ -789,7 +801,8 @@ function renderStats(){
 function openLead(id){
   eid=id||null;
   const l=id?leads.find(x=>x.id===id):null;
-  document.getElementById('leadTitle').childNodes[0].textContent=l?`עריכה — ${l.name} `:'ליד חדש ';
+  const retBadge=l?.returnsCount>0?` <span class="returns-badge" title="השאיר פרטים ${l.returnsCount+1} פעמים">↩ חזר ×${l.returnsCount+1}</span>`:'';
+  document.getElementById('leadTitle').innerHTML=(l?`עריכה — ${esc(l.name)} `:'ליד חדש ')+retBadge+' <span id="savedEl" style="display:none;font-size:12px;color:var(--green)">✓ נשמר</span>';
   document.getElementById('bdel').style.display=l?'inline-flex':'none';
   document.getElementById('bwa').style.display=(l&&l.phone)?'inline-flex':'none';
   document.getElementById('fn').value=l?.name||'';
