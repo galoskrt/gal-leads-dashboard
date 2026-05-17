@@ -460,8 +460,8 @@ tbody td{padding:12px 11px;vertical-align:middle}
   <div class="wa-chars" id="waChars">0 תווים</div>
   <div class="mactions">
     <button class="btn btn-outline" onclick="closeWA()">ביטול</button>
-    <button class="btn btn-outline" onclick="copyWA()" id="waCopyBtn">📋 העתק</button>
-    <a class="btn btn-wa" id="waLink" href="#" target="_blank" rel="noopener" onclick="onSendWA()">📱 פתח וואטסאפ</a>
+    <button class="btn btn-outline" onclick="copyWA()">📋 העתק</button>
+    <button class="btn btn-wa" onclick="onSendWA()">📱 פתח וואטסאפ</button>
   </div>
 </div>
 </div>
@@ -1025,18 +1025,15 @@ function applyWaTpl(i){
 }
 function updateWAChars(){
   document.getElementById('waChars').textContent=document.getElementById('waTxt').value.length+' תווים';
-  updateWaLink();
-}
-function updateWaLink(){
-  const l=leads.find(x=>x.id===waLid);if(!l)return;
-  const msg=document.getElementById('waTxt').value.trim();
-  const url=buildWaUrl(l.phone,msg);
-  document.getElementById('waLink').href=url;
 }
 function onSendWA(){
   const l=leads.find(x=>x.id===waLid);if(!l)return;
   const msg=document.getElementById('waTxt').value.trim();
   if(!msg){toast('❌ כתוב הודעה קודם');return;}
+  // Build URL at click time — avoids double-encoding by browser
+  const ph=fmtWaPhone(l.phone);
+  const url='https://wa.me/'+ph+'?text='+encodeURIComponent(msg);
+  window.open(url,'_blank');
   if(!l.history)l.history=[];
   l.history.push({date:todayStr(),res:'וואטסאפ נשלח',note:msg.slice(0,80)+(msg.length>80?'...':'')});
   l.updatedAt=nowIso();
