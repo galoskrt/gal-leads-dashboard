@@ -450,16 +450,18 @@ tbody td{padding:12px 11px;vertical-align:middle}
 <!-- WHATSAPP MODAL -->
 <div class="overlay" id="waOv" onclick="bgClose(event,'waOv')">
 <div class="modal wa-modal">
-  <h2>📱 שלח וואטסאפ <button class="modal-close" onclick="closeWA()">✕</button></h2>
+  <h2>📱 שלח פולואפ <button class="modal-close" onclick="closeWA()">✕</button></h2>
   <div class="wa-info">
     <div class="wa-av" id="waAv">?</div>
     <div><div class="wa-nm" id="waNm">—</div><div class="wa-ph" id="waPh">—</div></div>
   </div>
-  <textarea class="wa-ta" id="waTxt" placeholder="כתוב הודעה אישית..." oninput="updateWAChars()"></textarea>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px" id="waTpls"></div>
+  <textarea class="wa-ta" id="waTxt" placeholder="כתוב הודעה..." oninput="updateWAChars()"></textarea>
   <div class="wa-chars" id="waChars">0 תווים</div>
   <div class="mactions">
     <button class="btn btn-outline" onclick="closeWA()">ביטול</button>
-    <button class="btn btn-wa" onclick="sendWA()">📱 פתח וואטסאפ ושלח</button>
+    <button class="btn btn-outline" onclick="copyWA()" id="waCopyBtn">📋 העתק</button>
+    <a class="btn btn-wa" id="waLink" href="#" target="_blank" rel="noopener" onclick="onSendWA()">📱 פתח וואטסאפ</a>
   </div>
 </div>
 </div>
@@ -981,30 +983,72 @@ function clearRem(){document.getElementById('rdate').value='';document.getElemen
 // ═══════════════════════════════════════════════
 // WHATSAPP
 // ═══════════════════════════════════════════════
+function fmtWaPhone(raw){
+  const ph=(raw||'').replace(/\D/g,'');
+  if(ph.startsWith('972'))return ph;
+  if(ph.startsWith('0'))return '972'+ph.slice(1);
+  return '972'+ph;
+}
+function buildWaUrl(phone,msg){
+  return`https://wa.me/${fmtWaPhone(phone)}?text=${encodeURIComponent(msg)}`;
+}
+function waTemplates(l){
+  const name=(l.name||'').split(' ')[0];
+  return[
+    {label:'פולואפ ראשון',txt:`היי ${name}! 😊\nגל הרוש דיוק דיגיטלי.\nרציתי לחזור אליך בנוגע לאתר שדיברנו עליו.\nיש לך כמה דקות לשיחה קצרה?`},
+    {label:'פולואפ שני',txt:`היי ${name}, גל הרוש 👋\nמה שלומך?\nעדיין רלוונטי לך בנוגע לאתר? אשמח לענות על שאלות 🙂`},
+    {label:'לאחר פגישה',txt:`היי ${name}!\nתודה על השיחה הנעימה 🙏\nאשלח לך הצעה מסודרת בקרוב.\nיש משהו נוסף שרצית לשאול?`},
+    {label:'הצעת מחיר',txt:`היי ${name}! גל הרוש 😊\nהכנתי לך הצעה מסודרת לאתר.\nמתי נוח לך שנעבור עליה יחד?`},
+  ];
+}
 function openWA(id){
   const l=leads.find(x=>x.id===id);if(!l)return;
   waLid=id;
   document.getElementById('waAv').textContent=(l.name||'?')[0];
   document.getElementById('waNm').textContent=l.name;
   document.getElementById('waPh').textContent=l.phone||'—';
-  document.getElementById('waTxt').value='';
-  updateWAChars();
+  // Build template chips
+  const tpls=waTemplates(l);
+  document.getElementById('waTpls').innerHTML=tpls.map((t,i)=>
+    `<button class="btn btn-outline btn-sm" style="font-size:11px;padding:4px 8px" onclick="applyWaTpl(${i})">${t.label}</button>`
+  ).join('');
+  // Default text = first template
+  document.getElementById('waTxt').value=tpls[0].txt;
+  updateWAChars();updateWaLink();
   document.getElementById('waOv').classList.add('open');
   setTimeout(()=>document.getElementById('waTxt').focus(),80);
 }
-function openWAFromModal(){if(!eid)return;const id=eid;closeLead();setTimeout(()=>openWA(id),120);}
-function updateWAChars(){document.getElementById('waChars').textContent=document.getElementById('waTxt').value.length+' תווים';}
-function sendWA(){
+function applyWaTpl(i){
+  const l=leads.find(x=>x.id===waLid);if(!l)return;
+  document.getElementById('waTxt').value=waTemplates(l)[i].txt;
+  updateWAChars();updateWaLink();
+}
+function updateWAChars(){
+  document.getElementById('waChars').textContent=document.getElementById('waTxt').value.length+' תווים';
+  updateWaLink();
+}
+function updateWaLink(){
   const l=leads.find(x=>x.id===waLid);if(!l)return;
   const msg=document.getElementById('waTxt').value.trim();
-  if(!msg){toast('❌ כתוב הודעה קודם');return}
-  const ph=l.phone.replace(/\D/g,'');
-  const wa=ph.startsWith('0')?'972'+ph.slice(1):ph.startsWith('972')?ph:'972'+ph;
-  window.open(`https://wa.me/${wa}?text=${encodeURIComponent(msg)}`,'waPopup','width=520,height=680,left='+Math.round((screen.width-520)/2)+',top='+Math.round((screen.height-680)/2)+',resizable=yes,scrollbars=yes');
-  const l2=leads.find(x=>x.id===waLid);
-  if(l2){if(!l2.history)l2.history=[];l2.history.push({date:todayStr(),res:'וואטסאפ נשלח',note:msg.slice(0,80)+(msg.length>80?'...':'')});l2.updatedAt=nowIso();}
-  scheduleSave();render();closeWA();toast('📱 נפתח וואטסאפ');
+  const url=buildWaUrl(l.phone,msg);
+  document.getElementById('waLink').href=url;
 }
+function onSendWA(){
+  const l=leads.find(x=>x.id===waLid);if(!l)return;
+  const msg=document.getElementById('waTxt').value.trim();
+  if(!msg){toast('❌ כתוב הודעה קודם');return;}
+  if(!l.history)l.history=[];
+  l.history.push({date:todayStr(),res:'וואטסאפ נשלח',note:msg.slice(0,80)+(msg.length>80?'...':'')});
+  l.updatedAt=nowIso();
+  scheduleSave();render();
+  setTimeout(()=>{closeWA();toast('📱 נפתח וואטסאפ!');},300);
+}
+function copyWA(){
+  const msg=document.getElementById('waTxt').value.trim();
+  if(!msg){toast('אין מה להעתיק');return;}
+  navigator.clipboard.writeText(msg).then(()=>toast('📋 הועתק!'));
+}
+function openWAFromModal(){if(!eid)return;const id=eid;closeLead();setTimeout(()=>openWA(id),120);}
 function closeWA(){document.getElementById('waOv').classList.remove('open');waLid=null;}
 
 // ═══════════════════════════════════════════════
