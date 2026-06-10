@@ -118,9 +118,14 @@ tbody td{padding:12px 11px;vertical-align:middle}
 .s-proposal{background:rgba(255,126,226,.12);color:#ff9ee7;border:1px solid rgba(255,126,226,.25)}
 .s-quest{background:rgba(103,232,249,.1);color:#67e8f9;border:1px solid rgba(103,232,249,.2)}
 .s-meeting{background:rgba(255,144,0,.12);color:#FF9000;border:1px solid rgba(255,144,0,.3)}
-.s-won{background:rgba(34,197,94,.15);color:#4ade80;border:1px solid rgba(34,197,94,.35)}
 .s-irrelevant{background:rgba(255,255,255,.05);color:rgba(255,255,255,.3);border:1px solid rgba(255,255,255,.1)}
 .s-invalid{background:rgba(177,59,255,.08);color:rgba(177,59,255,.6);border:1px solid rgba(177,59,255,.15)}
+.s-answered{background:rgba(34,197,94,.1);color:#4ade80;border:1px solid rgba(34,197,94,.2)}
+.s-no23{background:rgba(255,77,109,.12);color:#ff8099;border:1px solid rgba(255,77,109,.25)}
+.s-meet-set{background:rgba(255,144,0,.12);color:#FF9000;border:1px solid rgba(255,144,0,.3)}
+.s-noshow{background:rgba(255,77,109,.15);color:#ff4d6d;border:1px solid rgba(255,77,109,.35)}
+.s-attended{background:rgba(103,232,249,.1);color:#67e8f9;border:1px solid rgba(103,232,249,.2)}
+.s-meeting-won{background:rgba(34,197,94,.15);color:#4ade80;border:1px solid rgba(34,197,94,.35)}
 
 /* ── REMINDER DOT ── */
 .rdot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-left:5px;vertical-align:middle}
@@ -209,6 +214,17 @@ tbody td{padding:12px 11px;vertical-align:middle}
 .empty{text-align:center;padding:60px 20px;color:var(--text2)}
 .empty h3{font-size:18px;font-weight:800;margin-bottom:8px;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
 
+/* ── STATS / CAMPAIGNS ── */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:18px}
+.stat-card{background:var(--s2);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center}
+.stat-card .v{font-size:21px;font-weight:900;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.stat-card .l{font-size:11px;color:var(--text2);margin-top:5px;text-transform:uppercase;letter-spacing:.04em}
+.stats-h{font-size:12px;color:var(--text2);margin:14px 0 8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.stats-table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:6px}
+.stats-table th,.stats-table td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--border);white-space:nowrap}
+.stats-table th{color:var(--text2);font-size:11px;font-weight:700;text-transform:uppercase}
+.adinfo-box{background:var(--s2);border:1px solid var(--border);border-radius:9px;padding:9px 12px;font-size:12px;color:var(--text2)}
+
 /* ── FOLLOWUP PROMPT BANNER ── */
 .fu-banner{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.82);z-index:500;display:none;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(6px)}
 .fu-banner.open{display:flex}
@@ -286,7 +302,12 @@ tbody td{padding:12px 11px;vertical-align:middle}
     <option value="proposal">הצעת מחיר נשלחה</option>
     <option value="quest">נשלח שאלון אפיון</option>
     <option value="meeting">נקבעה פגישה 📅</option>
-    <option value="won">סגרנו עסקה ✅</option>
+    <option value="answered">ענה ✅</option>
+    <option value="no_answer_23">לא ענה (X2+X3)</option>
+    <option value="meeting_set">קבע פגישה בקלנדר 🗓️</option>
+    <option value="meeting_attended">פגישה - הגיע 🤝</option>
+    <option value="meeting_noshow">פגישה - לא הגיע ⛔</option>
+    <option value="meeting_won">פגישה - סגר עסקה 💰</option>
     <option value="irrelevant">לא רלוונטי</option>
     <option value="invalid">מספר לא תקין</option>
   </select>
@@ -296,11 +317,17 @@ tbody td{padding:12px 11px;vertical-align:middle}
     <option value="overdue">באיחור</option>
     <option value="week">השבוע</option>
   </select>
+  <select class="sel" id="fcamp" onchange="render()">
+    <option value="">כל הקמפיינים</option>
+  </select>
   <button class="btn btn-outline btn-sm" onclick="syncNow()" title="סנכרן עכשיו">🔄</button>
   <button class="btn btn-outline btn-sm" onclick="manualMigrate()" title="שחזר נתונים מגיבוי ישן" style="background:#fff3cd;border-color:#ffc107">♻️ שחזר</button>
   <button class="btn btn-outline btn-sm" onclick="exportCSV()">📥 CSV</button>
   <button class="btn btn-outline btn-sm" onclick="undoSnapshot()" title="שחזור למצב לפני 24 שעות" style="border-color:rgba(255,144,0,.5);color:var(--orange)">↩ UNDO</button>
   <button class="btn btn-outline btn-sm" onclick="reqNotif()" title="הפעל התראות">🔔</button>
+  <button class="btn btn-outline btn-sm" onclick="openStats()" title="סטטיסטיקות">📊 סטטיסטיקות</button>
+  <button class="btn btn-outline btn-sm" onclick="openCampaigns()" title="קמפיינים Meta">📈 קמפיינים</button>
+  <button class="btn btn-outline btn-sm" onclick="openSettings()" title="הגדרות Meta">⚙️ הגדרות</button>
 </div>
 
 <div class="wrap">
@@ -350,7 +377,12 @@ tbody td{padding:12px 11px;vertical-align:middle}
         <option value="proposal">הצעת מחיר נשלחה</option>
         <option value="quest">נשלח שאלון אפיון</option>
         <option value="meeting">נקבעה פגישה 📅</option>
-        <option value="won">סגרנו עסקה ✅</option>
+        <option value="answered">ענה ✅</option>
+        <option value="no_answer_23">לא ענה (X2+X3)</option>
+        <option value="meeting_set">קבע פגישה בקלנדר 🗓️</option>
+        <option value="meeting_attended">פגישה - הגיע 🤝</option>
+        <option value="meeting_noshow">פגישה - לא הגיע ⛔</option>
+        <option value="meeting_won">פגישה - סגר עסקה 💰</option>
         <option value="irrelevant">לא רלוונטי</option>
         <option value="invalid">מספר לא תקין</option>
       </select>
@@ -394,6 +426,21 @@ tbody td{padding:12px 11px;vertical-align:middle}
     </div>
     <div class="fg one">
       <div class="f"><label>הערות להיערכות</label><textarea id="mnotes" placeholder="מה להכין, מה לשאול, נקודות חשובות..."></textarea></div>
+    </div>
+  </div>
+
+  <!-- WON (מופיע רק בסטטוס סגר עסקה) -->
+  <div class="relevant-box" id="wonBox" style="display:none">
+    <h4>💰 פרטי הסגירה</h4>
+    <div class="fg one">
+      <div class="f"><label>סכום העסקה (₪)</label><input type="number" id="fdeal" placeholder="5000"/></div>
+    </div>
+  </div>
+
+  <!-- AD ATTRIBUTION (מופיע רק אם יש שיוך מודעה מ-Meta) -->
+  <div class="fg one" id="adInfoBox" style="display:none">
+    <div class="f"><label>שיוך מודעה (Meta)</label>
+      <div class="adinfo-box" id="adInfoTxt"></div>
     </div>
   </div>
 
@@ -466,6 +513,49 @@ tbody td{padding:12px 11px;vertical-align:middle}
 </div>
 </div>
 
+<!-- STATS MODAL -->
+<div class="overlay" id="statsOv" onclick="bgClose(event,'statsOv')">
+<div class="modal" style="max-width:680px">
+  <h2>📊 סטטיסטיקות <button class="modal-close" onclick="closeOv('statsOv')">✕</button></h2>
+  <div id="statsBody"></div>
+</div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div class="overlay" id="settingsOv" onclick="bgClose(event,'settingsOv')">
+<div class="modal">
+  <h2>⚙️ הגדרות Meta Ads <button class="modal-close" onclick="closeOv('settingsOv')">✕</button></h2>
+  <div class="fg one">
+    <div class="f"><label>Meta Access Token</label><input type="password" id="setMetaToken" dir="ltr" placeholder="EAAG..."/></div>
+  </div>
+  <div class="fg one">
+    <div class="f"><label>Ad Account ID</label><input id="setAdAccount" dir="ltr" placeholder="act_1234567890"/></div>
+  </div>
+  <div class="mactions">
+    <button class="btn btn-outline" onclick="closeOv('settingsOv')">ביטול</button>
+    <button class="btn btn-primary" onclick="saveSettings()">שמור</button>
+  </div>
+</div>
+</div>
+
+<!-- CAMPAIGNS MODAL -->
+<div class="overlay" id="campOv" onclick="bgClose(event,'campOv')">
+<div class="modal" style="max-width:780px">
+  <h2>📈 קמפיינים (Meta Ads) <button class="modal-close" onclick="closeOv('campOv')">✕</button></h2>
+  <div class="fg one" style="margin-bottom:14px">
+    <div class="f"><label>טווח זמן</label>
+      <select class="sel" id="campRange" onchange="openCampaigns()" style="width:100%">
+        <option value="today">היום</option>
+        <option value="last_7d">7 ימים אחרונים</option>
+        <option value="last_30d" selected>30 יום אחרונים</option>
+        <option value="maximum">הכל</option>
+      </select>
+    </div>
+  </div>
+  <div id="campBody"></div>
+</div>
+</div>
+
 <!-- FOLLOWUP PROMPT BANNER -->
 <div class="fu-banner" id="fuBanner">
   <div class="fu-card">
@@ -512,6 +602,7 @@ const WP_API='https://dg-gal.online/wp-json/elementor/v1/form-submissions';
 // STATE
 // ═══════════════════════════════════════════════
 let leads=[], deletedIds=new Set(), eid=null, waLid=null;
+let settings={metaToken:'',adAccountId:''};
 let srt={k:'createdAt',d:-1};
 let sessionPass=null, fileSha=null, snapSha=null;
 let saveTimer=null, syncInt=null;
@@ -617,15 +708,25 @@ async function migrateGL2(){
 async function loadData(){
   try{
     const raw=await ghGet();
-    if(raw==='init'){leads=[];deletedIds=new Set();seedWP();await saveData(true);}
+    if(raw==='init'){leads=[];deletedIds=new Set();settings={metaToken:'',adAccountId:''};seedWP();await saveData(true);}
     else{
       const parsed=await dec(raw,sessionPass);
-      if(Array.isArray(parsed)){leads=parsed;deletedIds=new Set();}
-      else{leads=parsed.leads||[];deletedIds=new Set(parsed.deletedIds||[]);}
+      if(Array.isArray(parsed)){leads=parsed;deletedIds=new Set();settings={metaToken:'',adAccountId:''};}
+      else{leads=parsed.leads||[];deletedIds=new Set(parsed.deletedIds||[]);settings=parsed.settings||{metaToken:'',adAccountId:''};}
     }
-  }catch(e){leads=[];deletedIds=new Set();seedWP();console.warn('Load failed',e);}
+  }catch(e){leads=[];deletedIds=new Set();settings={metaToken:'',adAccountId:''};seedWP();console.warn('Load failed',e);}
   const migrated=await migrateGL2();
   if(migrated)toast('✅ הנתונים הישנים שוחזרו בהצלחה!',6000);
+  // מיגרציה: won -> meeting_won + ברירות מחדל לשדות חדשים
+  let needsSave=false;
+  leads.forEach(l=>{
+    if(l.status==='won'){l.status='meeting_won';needsSave=true;}
+    if(l.dealAmount===undefined){l.dealAmount=0;needsSave=true;}
+    if(l.campaign===undefined){l.campaign='';needsSave=true;}
+    if(l.adset===undefined){l.adset='';needsSave=true;}
+    if(l.ad===undefined){l.ad='';needsSave=true;}
+  });
+  if(needsSave)scheduleSave();
   const merged=deduplicateByPhone();
   if(merged>0){scheduleSave();toast(`🔁 מוזגו ${merged} כניסות כפולות לפי טלפון`,5000);}
   // Load snapshots: localStorage first, fallback to GitHub
@@ -682,7 +783,7 @@ async function saveData(now=false){
   if(!sessionPass)return;
   document.getElementById('savingEl').classList.add('show');
   try{
-    const payload={leads,deletedIds:[...deletedIds]};
+    const payload={leads,deletedIds:[...deletedIds],settings};
     const e2=await enc(payload,sessionPass);
     await ghPut(e2);updateSyncTime();
   }
@@ -786,6 +887,13 @@ async function syncWP(){
       const d2=(await r2.json()).data, vals={};
       (d2.values||[]).forEach(v=>{vals[v.key]=v.value});
       const src=d2.referer?.includes('utm_source=fb')?'FB ADS':d2.referer?.includes('utm_source=ig')?'Instagram ADS':'אחר';
+      let campaign='',adset='',ad='';
+      try{
+        const u=new URL(d2.referer);
+        campaign=u.searchParams.get('utm_campaign')||'';
+        adset=u.searchParams.get('utm_term')||'';
+        ad=u.searchParams.get('utm_content')||'';
+      }catch(e){}
       const newPhone=(vals['field_9378345']||'').replace(/\D/g,'');
       const existing=newPhone?leads.find(l=>l.phone&&l.phone.replace(/\D/g,'')===newPhone):null;
       if(existing){
@@ -795,7 +903,7 @@ async function syncWP(){
         existing.history.unshift({date:nowIso().slice(0,10),res:'חזר',note:`השאיר פרטים שוב (פעם ${existing.returnsCount+1}) — WP ID: ${d.id}`});
         deletedIds.add(wpId);
       } else {
-        leads.unshift({id:wpId,name:vals['name']||'',phone:vals['field_9378345']||'',business:vals['field_ba3a5d5']||'',source:src,status:'new',doc:'',notes:'',remAt:'',remNote:'',history:[],returnsCount:0,createdAt:d2.created_at||nowIso(),updatedAt:nowIso()});
+        leads.unshift({id:wpId,name:vals['name']||'',phone:vals['field_9378345']||'',business:vals['field_ba3a5d5']||'',source:src,status:'new',doc:'',notes:'',remAt:'',remNote:'',history:[],returnsCount:0,campaign,adset,ad,dealAmount:0,createdAt:d2.created_at||nowIso(),updatedAt:nowIso()});
       }
       added++;
     }
@@ -804,7 +912,7 @@ async function syncWP(){
 }
 function seedWP(){
   const wp=[{id:'103wp',name:'אליהו דניאל',phone:'0506274113',business:'עריכת דין',source:'FB ADS'},{id:'102wp',name:'מיכאלה',phone:'0507535232',business:'ניהול וארגון וליווי דיירים',source:'Instagram ADS'},{id:'101wp',name:'ניר',phone:'0549061101',business:'רהיטים',source:'אחר'},{id:'100wp',name:'שלומית',phone:'0528515842',business:'עורך דין',source:'FB ADS'},{id:'96wp',name:'אבי',phone:'0509868618',business:'מיזוג ושיפוצים',source:'אחר'},{id:'95wp',name:'Kobi Bensimon',phone:'0504306203',business:'עורך דין',source:'Instagram ADS'},{id:'94wp',name:'Gabi',phone:'0522759119',business:'ביטוח',source:'FB ADS'},{id:'93wp',name:'גלית',phone:'0545311532',business:'נטורופתית נשירת שיער',source:'אחר'},{id:'92wp',name:'אבי זלבה',phone:'0542263334',business:'מרצה וסופר',source:'FB ADS'},{id:'91wp',name:'מיטל',phone:'0537344772',business:'גיוס עובדים',source:'אחר'},{id:'90wp',name:'מיכל גורן',phone:'0505941560',business:'תיירות',source:'FB ADS'},{id:'89wp',name:'אושר',phone:'0505973123',business:'תשמישי קדושה',source:'Instagram ADS'},{id:'88wp',name:'הדס אוריאלי',phone:'0543181432',business:'ליווי לקריירה',source:'FB ADS'},{id:'87wp',name:'דון',phone:'0585009004',business:'בדק בית',source:'אחר'},{id:'86wp',name:'מיקי',phone:'0504032033',business:'מים',source:'FB ADS'},{id:'85wp',name:'נתן',phone:'0508345021',business:'ספרים',source:'אחר'},{id:'84wp',name:'תמר',phone:'0544950393',business:'הרצאות',source:'אחר'},{id:'83wp',name:'שלומי כהן',phone:'0502347650',business:'מים',source:'Instagram ADS'},{id:'82wp',name:'גדעון',phone:'0522405346',business:'השכרת גנרטורים',source:'FB ADS'},{id:'79wp',name:'אילת',phone:'0508262437',business:'עבודה',source:'אחר'}];
-  wp.forEach(l=>{if(!leads.find(x=>x.id===l.id))leads.push({...l,status:'new',doc:'',notes:'',remAt:'',remNote:'',history:[],meetDate:'',meetTime:'',meetPlace:'',meetDoc:'',meetNotes:'',createdAt:nowIso(),updatedAt:nowIso()})});
+  wp.forEach(l=>{if(!leads.find(x=>x.id===l.id))leads.push({...l,status:'new',doc:'',notes:'',remAt:'',remNote:'',history:[],meetDate:'',meetTime:'',meetPlace:'',meetDoc:'',meetNotes:'',campaign:'',adset:'',ad:'',dealAmount:0,createdAt:nowIso(),updatedAt:nowIso()})});
 }
 
 // ═══════════════════════════════════════════════
@@ -819,7 +927,12 @@ const ST={
   proposal:{l:'הצעת מחיר נשלחה',c:'s-proposal'},
   quest:{l:'נשלח שאלון אפיון',c:'s-quest'},
   meeting:{l:'נקבעה פגישה 📅',c:'s-meeting'},
-  won:{l:'סגרנו עסקה ✅',c:'s-won'},
+  answered:{l:'ענה ✅',c:'s-answered'},
+  no_answer_23:{l:'לא ענה (X2+X3)',c:'s-no23'},
+  meeting_set:{l:'קבע פגישה בקלנדר 🗓️',c:'s-meet-set'},
+  meeting_attended:{l:'פגישה - הגיע 🤝',c:'s-attended'},
+  meeting_noshow:{l:'פגישה - לא הגיע ⛔',c:'s-noshow'},
+  meeting_won:{l:'פגישה - סגר עסקה 💰',c:'s-meeting-won'},
   irrelevant:{l:'לא רלוונטי',c:'s-irrelevant'},
   invalid:{l:'מספר לא תקין',c:'s-invalid'},
 };
@@ -827,19 +940,26 @@ const ST={
 const ST_PRI={
   relevant:1,
   hot_fu:2,
-  meeting:3,
-  proposal:4,
-  quest:5,
-  cold_fu:6,
-  new:7,
-  no1:8,
-  no2:9,
-  no3:10,
-  no4:11,
-  won:12,
-  irrelevant:13,
-  invalid:14,
+  meeting_attended:3,
+  meeting:4,
+  meeting_set:5,
+  proposal:6,
+  quest:7,
+  answered:8,
+  cold_fu:9,
+  new:10,
+  no1:11,
+  no2:12,
+  no3:13,
+  no4:14,
+  no_answer_23:15,
+  meeting_noshow:16,
+  meeting_won:17,
+  irrelevant:18,
+  invalid:19,
 };
+// סטטוסים שעבורם נפתחת תיבת "פרטי הפגישה" (תאריך/שעה/מיקום/הערות היערכות)
+const MEETING_STATUSES=['meeting','meeting_set','meeting_attended','meeting_noshow','meeting_won'];
 
 // ═══════════════════════════════════════════════
 // RENDER
@@ -848,9 +968,11 @@ function getFiltered(){
   const q=document.getElementById('search').value.toLowerCase();
   const st=document.getElementById('fst').value;
   const fr=document.getElementById('frem').value;
+  const fc=document.getElementById('fcamp').value;
   return leads.filter(l=>{
     if(q&&!`${l.name} ${l.phone} ${l.business} ${l.notes}`.toLowerCase().includes(q))return false;
     if(st&&l.status!==st)return false;
+    if(fc&&l.campaign!==fc)return false;
     if(fr){const rs=remSt(l);if(fr==='today'&&rs!=='due')return false;if(fr==='overdue'&&rs!=='overdue')return false;if(fr==='week'&&!['due','week'].includes(rs))return false;}
     return true;
   }).sort((a,b)=>{
@@ -864,7 +986,15 @@ function getFiltered(){
     return av<bv?srt.d:av>bv?-srt.d:0;
   });
 }
+function populateCampFilter(){
+  const sel=document.getElementById('fcamp');
+  const cur=sel.value;
+  const camps=[...new Set(leads.map(l=>l.campaign).filter(Boolean))].sort();
+  sel.innerHTML='<option value="">כל הקמפיינים</option>'+camps.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  if(camps.includes(cur))sel.value=cur;
+}
 function render(){
+  populateCampFilter();
   renderStats();
   const rows=getFiltered();
   const tbody=document.getElementById('tbody');
@@ -882,7 +1012,7 @@ function render(){
       <td data-label="#">${rows.length-i}</td>
       <td data-label="שם"><b>${esc(l.name)}</b>${l.returnsCount>0?`<span class="returns-badge" title="השאיר פרטים ${l.returnsCount+1} פעמים">×${l.returnsCount+1}</span>`:''}<br><span style="font-size:11px;color:var(--text2)">${esc(l.phone||'')}</span></td>
       <td data-label="טלפון" style="direction:ltr;text-align:right">${esc(l.phone||'—')}</td>
-      <td data-label="תחום" style="font-size:12px;color:var(--text2)">${esc(l.business||'—')}</td>
+      <td data-label="תחום" style="font-size:12px;color:var(--text2)">${esc(l.business||'—')}${l.ad?`<br><span style="font-size:11px;color:var(--accent)">📢 ${esc(l.ad)}</span>`:''}</td>
       <td data-label="סטטוס"><span class="badge ${ST[l.status]?.c||'s-new'}">${ST[l.status]?.l||l.status}</span></td>
       <td data-label="פולואפ" class="td-rem">${dot}<span style="font-size:12px;color:${remClr}">${remTxt}</span></td>
       <td data-label="WA" class="td-wa">${waBtn}</td>
@@ -892,11 +1022,13 @@ function render(){
 }
 function renderStats(){
   const total=leads.length;
-  const pipe=leads.filter(l=>!['won','irrelevant','invalid'].includes(l.status)).length;
-  const won=leads.filter(l=>l.status==='won').length;
+  const pipe=leads.filter(l=>!['meeting_won','irrelevant','invalid'].includes(l.status)).length;
+  const won=leads.filter(l=>l.status==='meeting_won').length;
+  const eligible=leads.filter(l=>l.status!=='invalid').length;
+  const closeRate=eligible?Math.round(won/eligible*1000)/10:0;
   const od=leads.filter(l=>remSt(l)==='overdue').length;
   const td=leads.filter(l=>remSt(l)==='due').length;
-  let h=`<div class="hstat">סה"כ <b>${total}</b></div><div class="hstat">פייפליין <b>${pipe}</b></div><div class="hstat">נסגרו <b>${won}</b></div>`;
+  let h=`<div class="hstat">סה"כ <b>${total}</b></div><div class="hstat">פייפליין <b>${pipe}</b></div><div class="hstat">נסגרו <b>${won}</b></div><div class="hstat">אחוז סגירה <b>${closeRate}%</b></div>`;
   if(td)h+=`<div class="hstat todayc">היום <b>${td}</b></div>`;
   if(od)h+=`<div class="hstat warn">באיחור <b>${od}</b></div>`;
   document.getElementById('hstats').innerHTML=h;
@@ -927,6 +1059,14 @@ function openLead(id){
   document.getElementById('mplace').value=l?.meetPlace||'';
   document.getElementById('mdoc').value=l?.meetDoc||'';
   document.getElementById('mnotes').value=l?.meetNotes||'';
+  document.getElementById('fdeal').value=l?.dealAmount||'';
+  const adInfoBox=document.getElementById('adInfoBox');
+  if(l&&(l.campaign||l.adset||l.ad)){
+    adInfoBox.style.display='block';
+    document.getElementById('adInfoTxt').textContent=`🎯 קמפיין: ${l.campaign||'—'} · אד-סט: ${l.adset||'—'} · מודעה: ${l.ad||'—'}`;
+  }else{
+    adInfoBox.style.display='none';
+  }
   onStChange();
   if(l?.remAt){const d=new Date(l.remAt);document.getElementById('rdate').value=d.toISOString().split('T')[0];document.getElementById('rtime').value=d.toTimeString().slice(0,5);}
   else{document.getElementById('rdate').value='';document.getElementById('rtime').value='10:00';}
@@ -943,8 +1083,9 @@ function openLead(id){
 }
 function onStChange(){
   const st=document.getElementById('fst2').value;
-  document.getElementById('meetBox').style.display=st==='meeting'?'block':'none';
+  document.getElementById('meetBox').style.display=MEETING_STATUSES.includes(st)?'block':'none';
   document.getElementById('relevantBox').style.display=st==='relevant'?'block':'none';
+  document.getElementById('wonBox').style.display=st==='meeting_won'?'block':'none';
 }
 function closeLead(){document.getElementById('leadOv').classList.remove('open');eid=null;}
 function saveLead(){
@@ -953,7 +1094,7 @@ function saveLead(){
   const rd=document.getElementById('rdate').value;
   const rt=document.getElementById('rtime').value||'10:00';
   const remAt=rd?new Date(`${rd}T${rt}`).toISOString():'';
-  const data={name,phone:document.getElementById('fp').value.trim(),business:document.getElementById('fb').value.trim(),status:document.getElementById('fst2').value,source:document.getElementById('fsrc').value,doc:document.getElementById('fdoc').value.trim(),notes:document.getElementById('fnotes').value.trim(),remAt,remNote:document.getElementById('rnote').value.trim(),relProg:document.getElementById('relprog').value.trim(),relNext:document.getElementById('relnext').value,relNextTime:document.getElementById('relnexttime').value,meetDate:document.getElementById('mdate').value,meetTime:document.getElementById('mtime').value,meetPlace:document.getElementById('mplace').value.trim(),meetDoc:document.getElementById('mdoc').value.trim(),meetNotes:document.getElementById('mnotes').value.trim(),updatedAt:nowIso()};
+  const data={name,phone:document.getElementById('fp').value.trim(),business:document.getElementById('fb').value.trim(),status:document.getElementById('fst2').value,source:document.getElementById('fsrc').value,doc:document.getElementById('fdoc').value.trim(),notes:document.getElementById('fnotes').value.trim(),remAt,remNote:document.getElementById('rnote').value.trim(),relProg:document.getElementById('relprog').value.trim(),relNext:document.getElementById('relnext').value,relNextTime:document.getElementById('relnexttime').value,meetDate:document.getElementById('mdate').value,meetTime:document.getElementById('mtime').value,meetPlace:document.getElementById('mplace').value.trim(),meetDoc:document.getElementById('mdoc').value.trim(),meetNotes:document.getElementById('mnotes').value.trim(),dealAmount:parseFloat(document.getElementById('fdeal').value)||0,updatedAt:nowIso()};
   if(eid){const l=leads.find(x=>x.id===eid);if(l)Object.assign(l,data);}
   else leads.unshift({id:Date.now().toString(36)+Math.random().toString(36).slice(2),...data,history:[],createdAt:nowIso()});
   closeLead();render();scheduleSave();
@@ -1047,6 +1188,130 @@ function copyWA(){
 }
 function openWAFromModal(){if(!eid)return;const id=eid;closeLead();setTimeout(()=>openWA(id),120);}
 function closeWA(){document.getElementById('waOv').classList.remove('open');waLid=null;}
+
+// ═══════════════════════════════════════════════
+// STATS / SETTINGS / CAMPAIGNS MODALS
+// ═══════════════════════════════════════════════
+function closeOv(id){document.getElementById(id).classList.remove('open');}
+function openStats(){renderStatsModal();document.getElementById('statsOv').classList.add('open');}
+function renderStatsModal(){
+  const total=leads.length;
+  const eligible=leads.filter(l=>l.status!=='invalid').length;
+  const won=leads.filter(l=>l.status==='meeting_won');
+  const wonCount=won.length;
+  const closeRate=eligible?Math.round(wonCount/eligible*1000)/10:0;
+  const revenue=won.reduce((s,l)=>s+(l.dealAmount||0),0);
+  const avgDeal=wonCount?Math.round(revenue/wonCount):0;
+  const scheduled=leads.filter(l=>MEETING_STATUSES.includes(l.status)).length;
+  const attended=leads.filter(l=>['meeting_attended','meeting_won'].includes(l.status)).length;
+  const noshow=leads.filter(l=>l.status==='meeting_noshow').length;
+  const noshowRate=(attended+noshow)?Math.round(noshow/(attended+noshow)*1000)/10:0;
+
+  let h=`<div class="stats-grid">
+    <div class="stat-card"><div class="v">${total}</div><div class="l">סה"כ לידים</div></div>
+    <div class="stat-card"><div class="v">${wonCount}</div><div class="l">עסקאות שנסגרו</div></div>
+    <div class="stat-card"><div class="v">${closeRate}%</div><div class="l">אחוז סגירה</div></div>
+    <div class="stat-card"><div class="v">₪${revenue.toLocaleString()}</div><div class="l">סה"כ הכנסות</div></div>
+    <div class="stat-card"><div class="v">₪${avgDeal.toLocaleString()}</div><div class="l">עסקה ממוצעת</div></div>
+    <div class="stat-card"><div class="v">${scheduled}</div><div class="l">פגישות שנקבעו</div></div>
+    <div class="stat-card"><div class="v">${attended}</div><div class="l">פגישות שהתקיימו</div></div>
+    <div class="stat-card"><div class="v">${noshowRate}%</div><div class="l">אחוז לא הגיע</div></div>
+  </div>`;
+
+  const bySrc={};
+  leads.forEach(l=>{const s=l.source||'אחר';if(!bySrc[s])bySrc[s]={total:0,won:0};bySrc[s].total++;if(l.status==='meeting_won')bySrc[s].won++;});
+  h+=`<div class="stats-h">לפי מקור</div><table class="stats-table"><tr><th>מקור</th><th>לידים</th><th>נסגרו</th><th>אחוז סגירה</th></tr>`;
+  Object.entries(bySrc).forEach(([s,v])=>{
+    const rate=v.total?Math.round(v.won/v.total*1000)/10:0;
+    h+=`<tr><td>${esc(s)}</td><td>${v.total}</td><td>${v.won}</td><td>${rate}%</td></tr>`;
+  });
+  h+=`</table>`;
+
+  const camps=[...new Set(leads.map(l=>l.campaign).filter(Boolean))];
+  if(camps.length){
+    h+=`<div class="stats-h">לפי קמפיין</div><table class="stats-table"><tr><th>קמפיין</th><th>לידים</th><th>נסגרו</th><th>הכנסות</th></tr>`;
+    camps.forEach(c=>{
+      const ls=leads.filter(l=>l.campaign===c);
+      const w=ls.filter(l=>l.status==='meeting_won');
+      const rev=w.reduce((s,l)=>s+(l.dealAmount||0),0);
+      h+=`<tr><td>${esc(c)}</td><td>${ls.length}</td><td>${w.length}</td><td>₪${rev.toLocaleString()}</td></tr>`;
+    });
+    h+=`</table>`;
+  }
+
+  document.getElementById('statsBody').innerHTML=h;
+}
+
+// ── Settings (Meta) ──
+function openSettings(){
+  document.getElementById('setMetaToken').value=settings.metaToken||'';
+  document.getElementById('setAdAccount').value=settings.adAccountId||'';
+  document.getElementById('settingsOv').classList.add('open');
+}
+function saveSettings(){
+  settings.metaToken=document.getElementById('setMetaToken').value.trim();
+  settings.adAccountId=document.getElementById('setAdAccount').value.trim();
+  scheduleSave();
+  closeOv('settingsOv');
+  toast('✅ ההגדרות נשמרו');
+}
+
+// ── Campaigns (Meta Marketing API) ──
+async function openCampaigns(){
+  document.getElementById('campOv').classList.add('open');
+  const body=document.getElementById('campBody');
+  if(!settings.metaToken||!settings.adAccountId){
+    body.innerHTML=`<div class="empty"><h3>⚙️ נדרשת הגדרה</h3><p>יש להזין Access Token ו-Ad Account ID במסך ההגדרות לפני הצגת הקמפיינים.</p></div>`;
+    return;
+  }
+  body.innerHTML=`<div class="empty"><h3>⏳ טוען...</h3></div>`;
+  const range=document.getElementById('campRange').value;
+  const acc=settings.adAccountId.startsWith('act_')?settings.adAccountId:'act_'+settings.adAccountId;
+  const url=`https://graph.facebook.com/v19.0/${acc}/insights?level=ad&fields=campaign_name,adset_name,ad_name,spend,impressions,clicks&date_preset=${range}&limit=200&access_token=${encodeURIComponent(settings.metaToken)}`;
+  try{
+    const r=await fetch(url);
+    const j=await r.json();
+    if(j.error){body.innerHTML=`<div class="empty"><h3>❌ שגיאה</h3><p>${esc(j.error.message||'שגיאה לא ידועה')}</p></div>`;return;}
+    renderCampaigns(j.data||[]);
+  }catch(e){
+    body.innerHTML=`<div class="empty"><h3>❌ שגיאת רשת</h3><p>${esc(e.message)}</p></div>`;
+  }
+}
+function renderCampaigns(rows){
+  const body=document.getElementById('campBody');
+  if(!rows.length){body.innerHTML=`<div class="empty"><h3>אין נתונים</h3><p>לא נמצאו תוצאות לטווח הזמן שנבחר.</p></div>`;return;}
+  let totalSpend=0,totalLeadsMatched=0,totalMeetings=0,totalWon=0,totalRevenue=0;
+  let h=`<table class="stats-table"><tr><th>קמפיין</th><th>אד-סט</th><th>מודעה</th><th>הוצאה</th><th>חשיפות</th><th>קליקים</th><th>לידים</th><th>עלות לליד</th><th>נסגרו</th><th>הכנסות</th></tr>`;
+  rows.forEach(row=>{
+    const spend=parseFloat(row.spend)||0;
+    totalSpend+=spend;
+    const matched=leads.filter(l=>l.ad===row.ad_name);
+    const meetings=matched.filter(l=>MEETING_STATUSES.includes(l.status));
+    const won=matched.filter(l=>l.status==='meeting_won');
+    const revenue=won.reduce((s,l)=>s+(l.dealAmount||0),0);
+    totalLeadsMatched+=matched.length;
+    totalMeetings+=meetings.length;
+    totalWon+=won.length;
+    totalRevenue+=revenue;
+    const cpl=matched.length?Math.round(spend/matched.length):0;
+    h+=`<tr><td>${esc(row.campaign_name||'—')}</td><td>${esc(row.adset_name||'—')}</td><td>${esc(row.ad_name||'—')}</td><td>₪${spend.toLocaleString()}</td><td>${row.impressions||0}</td><td>${row.clicks||0}</td><td>${matched.length}</td><td>${matched.length?'₪'+cpl.toLocaleString():'—'}</td><td>${won.length}</td><td>₪${revenue.toLocaleString()}</td></tr>`;
+  });
+  h+=`</table>`;
+  const cpl=totalLeadsMatched?Math.round(totalSpend/totalLeadsMatched):0;
+  const cpm=totalMeetings?Math.round(totalSpend/totalMeetings):0;
+  const cpw=totalWon?Math.round(totalSpend/totalWon):0;
+  let cards=`<div class="stats-grid">
+    <div class="stat-card"><div class="v">₪${totalSpend.toLocaleString()}</div><div class="l">סה"כ הוצאה</div></div>
+    <div class="stat-card"><div class="v">${totalLeadsMatched}</div><div class="l">לידים משויכים</div></div>
+    <div class="stat-card"><div class="v">${totalLeadsMatched?'₪'+cpl.toLocaleString():'—'}</div><div class="l">עלות לליד</div></div>
+    <div class="stat-card"><div class="v">${totalMeetings}</div><div class="l">פגישות</div></div>
+    <div class="stat-card"><div class="v">${totalMeetings?'₪'+cpm.toLocaleString():'—'}</div><div class="l">עלות לפגישה</div></div>
+    <div class="stat-card"><div class="v">${totalWon}</div><div class="l">לקוחות משלמים</div></div>
+    <div class="stat-card"><div class="v">${totalWon?'₪'+cpw.toLocaleString():'—'}</div><div class="l">עלות ללקוח משלם</div></div>
+    <div class="stat-card"><div class="v">₪${totalRevenue.toLocaleString()}</div><div class="l">הכנסות</div></div>
+  </div>`;
+  body.innerHTML=cards+h;
+}
 
 // ═══════════════════════════════════════════════
 // REMINDERS
@@ -1155,8 +1420,8 @@ function closeFuBanner(){document.getElementById('fuBanner').classList.remove('o
 // ═══════════════════════════════════════════════
 function sortBy(k){srt.k===k?srt.d*=-1:(srt.k=k,srt.d=1);render()}
 function exportCSV(){
-  const h=['שם','טלפון','תחום','סטטוס','מקור','פולואפ','הערות'];
-  const rows=leads.map(l=>[l.name,l.phone,l.business,ST[l.status]?.l,l.source,l.remAt?fmtDt(l.remAt):'',l.notes||''].map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(','));
+  const h=['שם','טלפון','תחום','סטטוס','מקור','פולואפ','הערות','סכום עסקה','קמפיין','אד-סט','מודעה'];
+  const rows=leads.map(l=>[l.name,l.phone,l.business,ST[l.status]?.l,l.source,l.remAt?fmtDt(l.remAt):'',l.notes||'',l.dealAmount||'',l.campaign||'',l.adset||'',l.ad||''].map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(','));
   const csv='\uFEFF'+[h.join(','),...rows].join('\n');
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download=`לידים_${todayStr()}.csv`;a.click();
 }
