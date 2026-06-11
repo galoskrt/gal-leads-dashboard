@@ -725,6 +725,9 @@ async function loadData(){
     if(l.campaign===undefined){l.campaign='';needsSave=true;}
     if(l.adset===undefined){l.adset='';needsSave=true;}
     if(l.ad===undefined){l.ad='';needsSave=true;}
+    if(l.campaignId===undefined){l.campaignId='';needsSave=true;}
+    if(l.adsetId===undefined){l.adsetId='';needsSave=true;}
+    if(l.adId===undefined){l.adId='';needsSave=true;}
   });
   if(needsSave)scheduleSave();
   const merged=deduplicateByPhone();
@@ -886,14 +889,16 @@ async function syncWP(){
       if(!r2.ok)continue;
       const d2=(await r2.json()).data, vals={};
       (d2.values||[]).forEach(v=>{vals[v.key]=v.value});
-      const src=d2.referer?.includes('utm_source=fb')?'FB ADS':d2.referer?.includes('utm_source=ig')?'Instagram ADS':'אחר';
-      let campaign='',adset='',ad='';
-      try{
-        const u=new URL(d2.referer);
-        campaign=u.searchParams.get('utm_campaign')||'';
-        adset=u.searchParams.get('utm_term')||'';
-        ad=u.searchParams.get('utm_content')||'';
-      }catch(e){}
+      let rp=null;try{rp=new URL(d2.referer).searchParams;}catch(e){}
+      const pick=(...keys)=>{for(const k of keys){if(vals[k])return String(vals[k]).trim();if(rp&&rp.get(k))return rp.get(k).trim();}return'';};
+      const utmSrc=pick('utm_source').toLowerCase();
+      const src=utmSrc.includes('fb')||utmSrc.includes('facebook')?'FB ADS':utmSrc.includes('ig')||utmSrc.includes('instagram')?'Instagram ADS':'אחר';
+      const campaign=pick('utm_campaign');
+      const adset=pick('utm_term','adset');
+      const ad=pick('utm_content','utm_ad','ad');
+      const campaignId=pick('campaign_id');
+      const adsetId=pick('adset_id');
+      const adId=pick('ad_id');
       const newPhone=(vals['field_9378345']||'').replace(/\D/g,'');
       const existing=newPhone?leads.find(l=>l.phone&&l.phone.replace(/\D/g,'')===newPhone):null;
       if(existing){
@@ -903,7 +908,7 @@ async function syncWP(){
         existing.history.unshift({date:nowIso().slice(0,10),res:'חזר',note:`השאיר פרטים שוב (פעם ${existing.returnsCount+1}) — WP ID: ${d.id}`});
         deletedIds.add(wpId);
       } else {
-        leads.unshift({id:wpId,name:vals['name']||'',phone:vals['field_9378345']||'',business:vals['field_ba3a5d5']||'',source:src,status:'new',doc:'',notes:'',remAt:'',remNote:'',history:[],returnsCount:0,campaign,adset,ad,dealAmount:0,createdAt:d2.created_at||nowIso(),updatedAt:nowIso()});
+        leads.unshift({id:wpId,name:vals['name']||'',phone:vals['field_9378345']||'',business:vals['field_ba3a5d5']||'',source:src,status:'new',doc:'',notes:'',remAt:'',remNote:'',history:[],returnsCount:0,campaign,adset,ad,campaignId,adsetId,adId,dealAmount:0,createdAt:d2.created_at||nowIso(),updatedAt:nowIso()});
       }
       added++;
     }
@@ -1267,7 +1272,7 @@ async function openCampaigns(){
   body.innerHTML=`<div class="empty"><h3>⏳ טוען...</h3></div>`;
   const range=document.getElementById('campRange').value;
   const acc=settings.adAccountId.startsWith('act_')?settings.adAccountId:'act_'+settings.adAccountId;
-  const url=`https://graph.facebook.com/v19.0/${acc}/insights?level=ad&fields=campaign_name,adset_name,ad_name,spend,impressions,clicks&date_preset=${range}&limit=200&access_token=${encodeURIComponent(settings.metaToken)}`;
+  const url=`https://graph.facebook.com/v19.0/${acc}/insights?level=ad&fields=campaign_name,adset_name,ad_name,ad_id,adset_id,campaign_id,spend,impressions,clicks&date_preset=${range}&limit=200&access_token=${encodeURIComponent(settings.metaToken)}`;
   try{
     const r=await fetch(url);
     const j=await r.json();
@@ -1285,7 +1290,7 @@ function renderCampaigns(rows){
   rows.forEach(row=>{
     const spend=parseFloat(row.spend)||0;
     totalSpend+=spend;
-    const matched=leads.filter(l=>l.ad===row.ad_name);
+    const matched=leads.filter(l=>l.adId&&row.ad_id?String(l.adId)===String(row.ad_id):(l.ad&&l.ad===row.ad_name));
     const meetings=matched.filter(l=>MEETING_STATUSES.includes(l.status));
     const won=matched.filter(l=>l.status==='meeting_won');
     const revenue=won.reduce((s,l)=>s+(l.dealAmount||0),0);
