@@ -889,6 +889,13 @@ async function syncWP(){
       if(!r2.ok)continue;
       const d2=(await r2.json()).data, vals={};
       (d2.values||[]).forEach(v=>{vals[v.key]=v.value});
+      const fields=(d2.form&&d2.form.fields)||[];
+      const byLabel=(...kw)=>{const f=fields.find(f=>kw.some(k=>(f.label||'').includes(k)));return f&&vals[f.id]?String(vals[f.id]).trim():'';};
+      const byType=t=>{const f=fields.find(f=>f.type===t);return f&&vals[f.id]?String(vals[f.id]).trim():'';};
+      const gName=(vals['name']||byLabel('שם','שם מלא')||'').trim();
+      const gPhone=(vals['field_9378345']||byType('tel')||byLabel('טלפון','נייד')||'').trim();
+      const gBusiness=(vals['field_b555563']||byLabel('תחום','עסק','עיסוק')||'').trim();
+      const gEmail=(byType('email')||byLabel('אימייל','מייל','דוא')||'').trim();
       let rp=null;try{rp=new URL(d2.referer).searchParams;}catch(e){}
       const pick=(...keys)=>{for(const k of keys){if(vals[k])return String(vals[k]).trim();if(rp&&rp.get(k))return rp.get(k).trim();}return'';};
       const utmSrc=pick('utm_source').toLowerCase();
@@ -899,7 +906,7 @@ async function syncWP(){
       const campaignId=pick('campaign_id');
       const adsetId=pick('adset_id');
       const adId=pick('ad_id');
-      const newPhone=(vals['field_9378345']||'').replace(/\D/g,'');
+      const newPhone=gPhone.replace(/\D/g,'');
       const existing=newPhone?leads.find(l=>l.phone&&l.phone.replace(/\D/g,'')===newPhone):null;
       if(existing){
         existing.returnsCount=(existing.returnsCount||0)+1;
@@ -908,7 +915,7 @@ async function syncWP(){
         existing.history.unshift({date:nowIso().slice(0,10),res:'חזר',note:`השאיר פרטים שוב (פעם ${existing.returnsCount+1}) — WP ID: ${d.id}`});
         deletedIds.add(wpId);
       } else {
-        leads.unshift({id:wpId,name:vals['name']||'',phone:vals['field_9378345']||'',business:vals['field_ba3a5d5']||'',source:src,status:'new',doc:'',notes:'',remAt:'',remNote:'',history:[],returnsCount:0,campaign,adset,ad,campaignId,adsetId,adId,dealAmount:0,createdAt:d2.created_at||nowIso(),updatedAt:nowIso()});
+        leads.unshift({id:wpId,name:gName,phone:gPhone,business:gBusiness,email:gEmail,source:src,status:'new',doc:'',notes:'',remAt:'',remNote:'',history:[],returnsCount:0,campaign,adset,ad,campaignId,adsetId,adId,dealAmount:0,createdAt:d2.created_at||nowIso(),updatedAt:nowIso()});
       }
       added++;
     }
