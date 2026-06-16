@@ -1167,14 +1167,14 @@ function openWA(id){
   ).join('');
   // Default text = first template
   document.getElementById('waTxt').value=tpls[0].txt;
-  updateWAChars();updateWaLink();
+  updateWAChars();
   document.getElementById('waOv').classList.add('open');
   setTimeout(()=>document.getElementById('waTxt').focus(),80);
 }
 function applyWaTpl(i){
   const l=leads.find(x=>x.id===waLid);if(!l)return;
   document.getElementById('waTxt').value=waTemplates(l)[i].txt;
-  updateWAChars();updateWaLink();
+  updateWAChars();
 }
 function updateWAChars(){
   document.getElementById('waChars').textContent=document.getElementById('waTxt').value.length+' תווים';
