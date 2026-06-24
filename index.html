@@ -543,7 +543,7 @@ tbody td{padding:12px 11px;vertical-align:middle}
 <div class="overlay" id="campOv" onclick="bgClose(event,'campOv')">
 <div class="modal" style="max-width:780px">
   <h2>📈 קמפיינים (Meta Ads) <button class="modal-close" onclick="closeOv('campOv')">✕</button></h2>
-  <div class="fg one" style="margin-bottom:14px">
+  <div class="fg" style="margin-bottom:14px;grid-template-columns:2fr 1fr;align-items:end">
     <div class="f"><label>טווח זמן</label>
       <select class="sel" id="campRange" onchange="openCampaigns()" style="width:100%">
         <option value="today">היום</option>
@@ -551,6 +551,12 @@ tbody td{padding:12px 11px;vertical-align:middle}
         <option value="last_30d" selected>30 יום אחרונים</option>
         <option value="maximum">הכל</option>
       </select>
+    </div>
+    <div class="f"><label>תצוגה</label>
+      <label style="display:flex;align-items:center;gap:7px;background:var(--s2);border:1px solid var(--border);border-radius:9px;padding:9px 12px;cursor:pointer;font-size:13px;color:var(--text2)">
+        <input type="checkbox" id="campInactive" onchange="openCampaigns()" style="accent-color:var(--accent);width:16px;height:16px;cursor:pointer"/>
+        הצג גם לא פעילים
+      </label>
     </div>
   </div>
   <div id="campBody"></div>
@@ -1313,7 +1319,14 @@ async function openCampaigns(){
     'inline_link_clicks','cost_per_inline_link_click','inline_link_click_ctr',
     'actions','cost_per_action_type','action_values',
     'quality_ranking','engagement_rate_ranking','conversion_rate_ranking'].join(',');
-  const url=`https://graph.facebook.com/v19.0/${acc}/insights?level=ad&fields=${fields}&date_preset=${range}&limit=500&access_token=${encodeURIComponent(settings.metaToken)}`;
+  // ברירת מחדל: רק מודעות פעילות כרגע (effective_status=ACTIVE). הסינון דינמי — נמשך מחדש בכל פתיחה,
+  // אז קמפיין שמכבים יורד אוטומטית ומה שמדליקים נכנס אוטומטית.
+  const showInactive=document.getElementById('campInactive')?.checked;
+  let url=`https://graph.facebook.com/v19.0/${acc}/insights?level=ad&fields=${fields}&date_preset=${range}&limit=500&access_token=${encodeURIComponent(settings.metaToken)}`;
+  if(!showInactive){
+    const filtering=encodeURIComponent(JSON.stringify([{field:'ad.effective_status',operator:'IN',value:['ACTIVE']}]));
+    url+=`&filtering=${filtering}`;
+  }
   try{
     const r=await fetch(url);
     const j=await r.json();
@@ -1325,7 +1338,9 @@ async function openCampaigns(){
 }
 function renderCampaigns(rows){
   const body=document.getElementById('campBody');
-  if(!rows.length){body.innerHTML=`<div class="empty"><h3>אין נתונים</h3><p>לא נמצאו תוצאות לטווח הזמן שנבחר.</p></div>`;return;}
+  if(!rows.length){
+    const inactive=document.getElementById('campInactive')?.checked;
+    body.innerHTML=`<div class="empty"><h3>אין נתונים</h3><p>${inactive?'לא נמצאו תוצאות לטווח הזמן שנבחר.':'אין מודעות פעילות בטווח הזמן שנבחר. סמן "הצג גם לא פעילים" כדי לראות קמפיינים כבויים.'}</p></div>`;return;}
   // אגרגטים
   let tSpend=0,tImpr=0,tLinkClicks=0,tLpv=0,tMetaLeads=0,
       tMatched=0,tMeetings=0,tWon=0,tRevenue=0;
