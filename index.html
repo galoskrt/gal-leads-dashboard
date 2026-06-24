@@ -543,13 +543,20 @@ tbody td{padding:12px 11px;vertical-align:middle}
 <div class="overlay" id="campOv" onclick="bgClose(event,'campOv')">
 <div class="modal" style="max-width:780px">
   <h2>📈 קמפיינים (Meta Ads) <button class="modal-close" onclick="closeOv('campOv')">✕</button></h2>
-  <div class="fg" style="margin-bottom:14px;grid-template-columns:2fr 1fr;align-items:end">
+  <div class="fg" style="margin-bottom:14px;grid-template-columns:1.4fr 1fr 1.1fr;align-items:end">
     <div class="f"><label>טווח זמן</label>
       <select class="sel" id="campRange" onchange="openCampaigns()" style="width:100%">
         <option value="today">היום</option>
         <option value="last_7d">7 ימים אחרונים</option>
         <option value="last_30d" selected>30 יום אחרונים</option>
         <option value="maximum">הכל</option>
+      </select>
+    </div>
+    <div class="f"><label>רמה</label>
+      <select class="sel" id="campLevel" onchange="openCampaigns()" style="width:100%">
+        <option value="campaign" selected>קמפיין</option>
+        <option value="adset">אד-סט</option>
+        <option value="ad">מודעה</option>
       </select>
     </div>
     <div class="f"><label>תצוגה</label>
@@ -1313,47 +1320,56 @@ async function openCampaigns(){
   }
   body.innerHTML=`<div class="empty"><h3>⏳ טוען...</h3></div>`;
   const range=document.getElementById('campRange').value;
+  const level=document.getElementById('campLevel')?.value||'campaign';
   const acc=settings.adAccountId.startsWith('act_')?settings.adAccountId:'act_'+settings.adAccountId;
-  const fields=['campaign_name','adset_name','ad_name','ad_id','adset_id','campaign_id',
-    'spend','impressions','reach','frequency','cpm',
-    'inline_link_clicks','cost_per_inline_link_click','inline_link_click_ctr',
-    'actions','cost_per_action_type','action_values',
-    'quality_ranking','engagement_rate_ranking','conversion_rate_ranking'].join(',');
-  // ברירת מחדל: רק מודעות פעילות כרגע (effective_status=ACTIVE). הסינון דינמי — נמשך מחדש בכל פתיחה,
-  // אז קמפיין שמכבים יורד אוטומטית ומה שמדליקים נכנס אוטומטית.
+  // מבקשים מ-Meta אגרגציה ברמה שנבחרה — כך Reach/תדירות מחושבים נכון (dedup) ולא ידנית.
+  // דירוגי איכות זמינים רק ברמת מודעה.
+  const base=['spend','impressions','reach','frequency','cpm','inline_link_clicks','cost_per_inline_link_click','inline_link_click_ctr','actions','cost_per_action_type','action_values'];
+  let nameFields,extra=[];
+  if(level==='campaign')nameFields=['campaign_name','campaign_id'];
+  else if(level==='adset')nameFields=['campaign_name','campaign_id','adset_name','adset_id'];
+  else {nameFields=['campaign_name','campaign_id','adset_name','adset_id','ad_name','ad_id'];extra=['quality_ranking','engagement_rate_ranking','conversion_rate_ranking'];}
+  const fields=[...nameFields,...base,...extra].join(',');
+  // ברירת מחדל: רק פעילים כרגע (effective_status=ACTIVE) ברמה שנבחרה. דינמי — נמשך מחדש בכל פתיחה,
+  // אז מה שמכבים יורד אוטומטית ומה שמדליקים נכנס אוטומטית.
   const showInactive=document.getElementById('campInactive')?.checked;
-  let url=`https://graph.facebook.com/v19.0/${acc}/insights?level=ad&fields=${fields}&date_preset=${range}&limit=500&access_token=${encodeURIComponent(settings.metaToken)}`;
+  let url=`https://graph.facebook.com/v19.0/${acc}/insights?level=${level}&fields=${fields}&date_preset=${range}&limit=500&access_token=${encodeURIComponent(settings.metaToken)}`;
   if(!showInactive){
-    const filtering=encodeURIComponent(JSON.stringify([{field:'ad.effective_status',operator:'IN',value:['ACTIVE']}]));
+    const filtering=encodeURIComponent(JSON.stringify([{field:`${level}.effective_status`,operator:'IN',value:['ACTIVE']}]));
     url+=`&filtering=${filtering}`;
   }
   try{
     const r=await fetch(url);
     const j=await r.json();
     if(j.error){body.innerHTML=`<div class="empty"><h3>❌ שגיאה</h3><p>${esc(j.error.message||'שגיאה לא ידועה')}</p></div>`;return;}
-    renderCampaigns(j.data||[]);
+    renderCampaigns(j.data||[],level);
   }catch(e){
     body.innerHTML=`<div class="empty"><h3>❌ שגיאת רשת</h3><p>${esc(e.message)}</p></div>`;
   }
 }
-function renderCampaigns(rows){
+function renderCampaigns(rows,level){
+  level=level||'campaign';
+  const isAd=level==='ad', isAdset=level==='adset';
   const body=document.getElementById('campBody');
   if(!rows.length){
     const inactive=document.getElementById('campInactive')?.checked;
-    body.innerHTML=`<div class="empty"><h3>אין נתונים</h3><p>${inactive?'לא נמצאו תוצאות לטווח הזמן שנבחר.':'אין מודעות פעילות בטווח הזמן שנבחר. סמן "הצג גם לא פעילים" כדי לראות קמפיינים כבויים.'}</p></div>`;return;}
+    body.innerHTML=`<div class="empty"><h3>אין נתונים</h3><p>${inactive?'לא נמצאו תוצאות לטווח הזמן שנבחר.':'אין פעילים בטווח הזמן שנבחר. סמן "הצג גם לא פעילים" כדי לראות כבויים.'}</p></div>`;return;}
   // אגרגטים
   let tSpend=0,tImpr=0,tLinkClicks=0,tLpv=0,tMetaLeads=0,
       tMatched=0,tMeetings=0,tWon=0,tRevenue=0;
   // מיון לפי הוצאה — הגבוה ביותר למעלה
   rows=[...rows].sort((a,b)=>(parseFloat(b.spend)||0)-(parseFloat(a.spend)||0));
+  const subTh=isAd?'<th>מודעה</th>':isAdset?'<th>אד-סט</th>':'';
+  const qualTh=isAd?'<th>איכות</th>':'';
   let h=`<div style="overflow-x:auto;margin-top:4px"><table class="stats-table"><tr>
-    <th>קמפיין</th><th>מודעה</th><th>הוצאה</th><th>חשיפות</th><th>תדירות</th>
+    <th>קמפיין</th>${subTh}<th>הוצאה</th><th>חשיפות</th><th>תפוצה</th><th>תדירות</th>
     <th>קליקים</th><th>CTR</th><th>CPC</th><th>צפיות דף</th>
-    <th>לידים (Meta)</th><th>עלות/ליד</th><th>איכות</th>
+    <th>לידים (Meta)</th><th>עלות/ליד</th>${qualTh}
     <th>משויכים</th><th>פגישות</th><th>נסגרו</th><th>ROAS</th></tr>`;
   rows.forEach(row=>{
     const spend=parseFloat(row.spend)||0;
     const impr=parseInt(row.impressions)||0;
+    const reach=parseInt(row.reach)||0;
     const freq=parseFloat(row.frequency)||0;
     const linkClicks=parseInt(row.inline_link_clicks)||0;
     const ctr=parseFloat(row.inline_link_click_ctr)||0;
@@ -1361,8 +1377,12 @@ function renderCampaigns(rows){
     const lpv=actVal(row.actions,'landing_page_view');
     const mLeads=metaLeads(row);
     const mCpl=metaCostPerLead(row);
-    // נתוני המשפך מהדשבורד (תלוי שיוך לכל ליד)
-    const matched=leads.filter(l=>(l.adId&&row.ad_id)?String(l.adId)===String(row.ad_id):(l.ad&&l.ad===row.ad_name));
+    // נתוני המשפך מהדשבורד (תלוי שיוך לכל ליד) — מצליב לפי הרמה שנבחרה
+    const matched=leads.filter(l=>{
+      if(isAd)return (l.adId&&row.ad_id)?String(l.adId)===String(row.ad_id):(l.ad&&l.ad===row.ad_name);
+      if(isAdset)return (l.adsetId&&row.adset_id)?String(l.adsetId)===String(row.adset_id):(l.adset&&l.adset===row.adset_name);
+      return (l.campaignId&&row.campaign_id)?String(l.campaignId)===String(row.campaign_id):(l.campaign&&l.campaign===row.campaign_name);
+    });
     const meetings=matched.filter(l=>MEETING_STATUSES.includes(l.status));
     const won=matched.filter(l=>l.status==='meeting_won');
     const revenue=won.reduce((s,l)=>s+(l.dealAmount||0),0);
@@ -1372,19 +1392,21 @@ function renderCampaigns(rows){
     const lpvClr=leak>0.4?'var(--red)':leak>0.25?'var(--orange)':'var(--text2)';
     tSpend+=spend;tImpr+=impr;tLinkClicks+=linkClicks;tLpv+=lpv;tMetaLeads+=mLeads;
     tMatched+=matched.length;tMeetings+=meetings.length;tWon+=won.length;tRevenue+=revenue;
+    const subName=isAd?row.ad_name:isAdset?row.adset_name:null;
+    const subTd=subName!==null?`<td style="max-width:150px;white-space:normal;font-size:12px;color:var(--text2)">${esc(subName||'—')}</td>`:'';
+    const qualTd=isAd?`<td style="white-space:nowrap">${rankDot(row.quality_ranking)}${rankDot(row.engagement_rate_ranking)}${rankDot(row.conversion_rate_ranking)}</td>`:'';
     h+=`<tr>
-      <td style="max-width:150px;white-space:normal">${esc(row.campaign_name||'—')}</td>
-      <td style="max-width:150px;white-space:normal;font-size:12px;color:var(--text2)">${esc(row.ad_name||'—')}</td>
+      <td style="max-width:160px;white-space:normal">${esc(row.campaign_name||'—')}</td>${subTd}
       <td>₪${nf(spend)}</td>
       <td>${impr.toLocaleString()}</td>
+      <td>${reach?reach.toLocaleString():'—'}</td>
       <td>${freq?freq.toFixed(1):'—'}</td>
       <td>${linkClicks.toLocaleString()}</td>
-      <td>${ctr?ctr.toFixed(1)+'%':'—'}</td>
+      <td>${ctr?ctr.toFixed(2)+'%':'—'}</td>
       <td>${cpc?'₪'+nf(cpc):'—'}</td>
       <td style="color:${lpvClr}">${lpv?Math.round(lpv).toLocaleString():'—'}</td>
       <td><b style="color:var(--accent)">${mLeads||'—'}</b></td>
-      <td>${mLeads?'₪'+nf(mCpl):'—'}</td>
-      <td style="white-space:nowrap">${rankDot(row.quality_ranking)}${rankDot(row.engagement_rate_ranking)}${rankDot(row.conversion_rate_ranking)}</td>
+      <td>${mLeads?'₪'+nf(mCpl):'—'}</td>${qualTd}
       <td>${matched.length||'—'}</td>
       <td>${meetings.length||'—'}</td>
       <td>${won.length||'—'}</td>
@@ -1411,9 +1433,9 @@ function renderCampaigns(rows){
   </div>`;
   // מקרא + הסבר על העמודות התלויות בשיוך
   let legend=`<div class="adinfo-box" style="margin-top:10px;line-height:1.7">
-    <b>איכות:</b> ${rankDot('above_average')} מעל הממוצע · ${rankDot('average')} ממוצע · ${rankDot('below_average_10')} מתחת · ${rankDot('UNKNOWN')} אין נתונים &nbsp;(איכות / מעורבות / המרות)<br>
+    ${isAd?`<b>איכות:</b> ${rankDot('above_average')} מעל הממוצע · ${rankDot('average')} ממוצע · ${rankDot('below_average_10')} מתחת · ${rankDot('UNKNOWN')} אין נתונים &nbsp;(איכות / מעורבות / המרות)<br>`:''}
     <b>לידים (Meta)</b> מגיע ישירות מ-Meta — עובד תמיד. <b>משויכים / פגישות / נסגרו / ROAS</b> דורשים שיוך מודעה לכל ליד (UTM).
-    ${tMetaLeads&&!tMatched?'<br><span style="color:var(--orange)">⚠️ Meta מדווח לידים אבל אף ליד בדשבורד לא משויך למודעה — לכן עמודות המשפך ריקות. נדרש שיוך UTM.</span>':''}
+    ${tMetaLeads&&!tMatched?'<br><span style="color:var(--orange)">⚠️ Meta מדווח לידים אבל אף ליד בדשבורד לא משויך — לכן עמודות המשפך ריקות. נדרש שיוך UTM.</span>':''}
   </div>`;
   body.innerHTML=cards+h+legend;
 }
