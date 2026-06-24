@@ -1270,6 +1270,34 @@ function saveSettings(){
 }
 
 // ── Campaigns (Meta Marketing API) ──
+// סוגי פעולות שמייצגים "ליד" אצל Meta (טופס אתר / פיקסל / טופס מיידי)
+const LEAD_ACTION_TYPES=['offsite_conversion.fb_pixel_lead','onsite_conversion.lead_grouped','leadgen_grouped','lead'];
+// מחזיר ערך פעולה מתוך מערך actions/cost_per_action_type לפי סוג
+function actVal(arr,type){
+  if(!Array.isArray(arr))return 0;
+  const a=arr.find(x=>x.action_type===type);
+  return a?parseFloat(a.value)||0:0;
+}
+// מספר הלידים שדיווח Meta — לוקח את הסוג עם הערך הגבוה ביותר כדי לא לספור כפול
+function metaLeads(row){
+  let max=0;
+  for(const t of LEAD_ACTION_TYPES)max=Math.max(max,actVal(row.actions,t));
+  return Math.round(max);
+}
+function metaCostPerLead(row){
+  for(const t of LEAD_ACTION_TYPES){const c=actVal(row.cost_per_action_type,t);if(c)return c;}
+  const lv=metaLeads(row),sp=parseFloat(row.spend)||0;
+  return lv?sp/lv:0;
+}
+// דירוג איכות/מעורבות/המרות -> נקודה צבעונית
+function rankDot(v){
+  if(!v||v==='UNKNOWN')return '<span title="אין מספיק נתונים" style="color:var(--gray)">⚪</span>';
+  if(v==='above_average')return '<span title="מעל הממוצע" style="color:var(--green)">🟢</span>';
+  if(v==='average')return '<span title="ממוצע" style="color:var(--yellow)">🟡</span>';
+  return '<span title="מתחת לממוצע" style="color:var(--red)">🔴</span>';
+}
+function nf(n){return (Math.round(n*100)/100).toLocaleString();}
+
 async function openCampaigns(){
   document.getElementById('campOv').classList.add('open');
   const body=document.getElementById('campBody');
@@ -1280,7 +1308,12 @@ async function openCampaigns(){
   body.innerHTML=`<div class="empty"><h3>⏳ טוען...</h3></div>`;
   const range=document.getElementById('campRange').value;
   const acc=settings.adAccountId.startsWith('act_')?settings.adAccountId:'act_'+settings.adAccountId;
-  const url=`https://graph.facebook.com/v19.0/${acc}/insights?level=ad&fields=campaign_name,adset_name,ad_name,ad_id,adset_id,campaign_id,spend,impressions,clicks&date_preset=${range}&limit=200&access_token=${encodeURIComponent(settings.metaToken)}`;
+  const fields=['campaign_name','adset_name','ad_name','ad_id','adset_id','campaign_id',
+    'spend','impressions','reach','frequency','cpm',
+    'inline_link_clicks','cost_per_inline_link_click','inline_link_click_ctr',
+    'actions','cost_per_action_type','action_values',
+    'quality_ranking','engagement_rate_ranking','conversion_rate_ranking'].join(',');
+  const url=`https://graph.facebook.com/v19.0/${acc}/insights?level=ad&fields=${fields}&date_preset=${range}&limit=500&access_token=${encodeURIComponent(settings.metaToken)}`;
   try{
     const r=await fetch(url);
     const j=await r.json();
@@ -1293,37 +1326,81 @@ async function openCampaigns(){
 function renderCampaigns(rows){
   const body=document.getElementById('campBody');
   if(!rows.length){body.innerHTML=`<div class="empty"><h3>אין נתונים</h3><p>לא נמצאו תוצאות לטווח הזמן שנבחר.</p></div>`;return;}
-  let totalSpend=0,totalLeadsMatched=0,totalMeetings=0,totalWon=0,totalRevenue=0;
-  let h=`<table class="stats-table"><tr><th>קמפיין</th><th>אד-סט</th><th>מודעה</th><th>הוצאה</th><th>חשיפות</th><th>קליקים</th><th>לידים</th><th>עלות לליד</th><th>נסגרו</th><th>הכנסות</th></tr>`;
+  // אגרגטים
+  let tSpend=0,tImpr=0,tLinkClicks=0,tLpv=0,tMetaLeads=0,
+      tMatched=0,tMeetings=0,tWon=0,tRevenue=0;
+  // מיון לפי הוצאה — הגבוה ביותר למעלה
+  rows=[...rows].sort((a,b)=>(parseFloat(b.spend)||0)-(parseFloat(a.spend)||0));
+  let h=`<div style="overflow-x:auto;margin-top:4px"><table class="stats-table"><tr>
+    <th>קמפיין</th><th>מודעה</th><th>הוצאה</th><th>חשיפות</th><th>תדירות</th>
+    <th>קליקים</th><th>CTR</th><th>CPC</th><th>צפיות דף</th>
+    <th>לידים (Meta)</th><th>עלות/ליד</th><th>איכות</th>
+    <th>משויכים</th><th>פגישות</th><th>נסגרו</th><th>ROAS</th></tr>`;
   rows.forEach(row=>{
     const spend=parseFloat(row.spend)||0;
-    totalSpend+=spend;
-    const matched=leads.filter(l=>l.adId&&row.ad_id?String(l.adId)===String(row.ad_id):(l.ad&&l.ad===row.ad_name));
+    const impr=parseInt(row.impressions)||0;
+    const freq=parseFloat(row.frequency)||0;
+    const linkClicks=parseInt(row.inline_link_clicks)||0;
+    const ctr=parseFloat(row.inline_link_click_ctr)||0;
+    const cpc=parseFloat(row.cost_per_inline_link_click)||0;
+    const lpv=actVal(row.actions,'landing_page_view');
+    const mLeads=metaLeads(row);
+    const mCpl=metaCostPerLead(row);
+    // נתוני המשפך מהדשבורד (תלוי שיוך לכל ליד)
+    const matched=leads.filter(l=>(l.adId&&row.ad_id)?String(l.adId)===String(row.ad_id):(l.ad&&l.ad===row.ad_name));
     const meetings=matched.filter(l=>MEETING_STATUSES.includes(l.status));
     const won=matched.filter(l=>l.status==='meeting_won');
     const revenue=won.reduce((s,l)=>s+(l.dealAmount||0),0);
-    totalLeadsMatched+=matched.length;
-    totalMeetings+=meetings.length;
-    totalWon+=won.length;
-    totalRevenue+=revenue;
-    const cpl=matched.length?Math.round(spend/matched.length):0;
-    h+=`<tr><td>${esc(row.campaign_name||'—')}</td><td>${esc(row.adset_name||'—')}</td><td>${esc(row.ad_name||'—')}</td><td>₪${spend.toLocaleString()}</td><td>${row.impressions||0}</td><td>${row.clicks||0}</td><td>${matched.length}</td><td>${matched.length?'₪'+cpl.toLocaleString():'—'}</td><td>${won.length}</td><td>₪${revenue.toLocaleString()}</td></tr>`;
+    const roas=spend?revenue/spend:0;
+    // צבע אזהרה: יותר מ-40% מהקליקים לא הגיעו לדף נחיתה
+    const leak=linkClicks&&lpv?1-(lpv/linkClicks):0;
+    const lpvClr=leak>0.4?'var(--red)':leak>0.25?'var(--orange)':'var(--text2)';
+    tSpend+=spend;tImpr+=impr;tLinkClicks+=linkClicks;tLpv+=lpv;tMetaLeads+=mLeads;
+    tMatched+=matched.length;tMeetings+=meetings.length;tWon+=won.length;tRevenue+=revenue;
+    h+=`<tr>
+      <td style="max-width:150px;white-space:normal">${esc(row.campaign_name||'—')}</td>
+      <td style="max-width:150px;white-space:normal;font-size:12px;color:var(--text2)">${esc(row.ad_name||'—')}</td>
+      <td>₪${nf(spend)}</td>
+      <td>${impr.toLocaleString()}</td>
+      <td>${freq?freq.toFixed(1):'—'}</td>
+      <td>${linkClicks.toLocaleString()}</td>
+      <td>${ctr?ctr.toFixed(1)+'%':'—'}</td>
+      <td>${cpc?'₪'+nf(cpc):'—'}</td>
+      <td style="color:${lpvClr}">${lpv?Math.round(lpv).toLocaleString():'—'}</td>
+      <td><b style="color:var(--accent)">${mLeads||'—'}</b></td>
+      <td>${mLeads?'₪'+nf(mCpl):'—'}</td>
+      <td style="white-space:nowrap">${rankDot(row.quality_ranking)}${rankDot(row.engagement_rate_ranking)}${rankDot(row.conversion_rate_ranking)}</td>
+      <td>${matched.length||'—'}</td>
+      <td>${meetings.length||'—'}</td>
+      <td>${won.length||'—'}</td>
+      <td>${spend&&revenue?roas.toFixed(2)+'x':'—'}</td>
+    </tr>`;
   });
-  h+=`</table>`;
-  const cpl=totalLeadsMatched?Math.round(totalSpend/totalLeadsMatched):0;
-  const cpm=totalMeetings?Math.round(totalSpend/totalMeetings):0;
-  const cpw=totalWon?Math.round(totalSpend/totalWon):0;
+  h+=`</table></div>`;
+  const aCpl=tMetaLeads?tSpend/tMetaLeads:0;
+  const aCpm=tMeetings?tSpend/tMeetings:0;
+  const aCpw=tWon?tSpend/tWon:0;
+  const aRoas=tSpend?tRevenue/tSpend:0;
+  const clickToLpv=tLinkClicks?Math.round(tLpv/tLinkClicks*100):0;
   let cards=`<div class="stats-grid">
-    <div class="stat-card"><div class="v">₪${totalSpend.toLocaleString()}</div><div class="l">סה"כ הוצאה</div></div>
-    <div class="stat-card"><div class="v">${totalLeadsMatched}</div><div class="l">לידים משויכים</div></div>
-    <div class="stat-card"><div class="v">${totalLeadsMatched?'₪'+cpl.toLocaleString():'—'}</div><div class="l">עלות לליד</div></div>
-    <div class="stat-card"><div class="v">${totalMeetings}</div><div class="l">פגישות</div></div>
-    <div class="stat-card"><div class="v">${totalMeetings?'₪'+cpm.toLocaleString():'—'}</div><div class="l">עלות לפגישה</div></div>
-    <div class="stat-card"><div class="v">${totalWon}</div><div class="l">לקוחות משלמים</div></div>
-    <div class="stat-card"><div class="v">${totalWon?'₪'+cpw.toLocaleString():'—'}</div><div class="l">עלות ללקוח משלם</div></div>
-    <div class="stat-card"><div class="v">₪${totalRevenue.toLocaleString()}</div><div class="l">הכנסות</div></div>
+    <div class="stat-card"><div class="v">₪${nf(tSpend)}</div><div class="l">סה"כ הוצאה</div></div>
+    <div class="stat-card"><div class="v">${tMetaLeads}</div><div class="l">לידים (Meta)</div></div>
+    <div class="stat-card"><div class="v">${tMetaLeads?'₪'+nf(aCpl):'—'}</div><div class="l">עלות לליד (Meta)</div></div>
+    <div class="stat-card"><div class="v">${tLinkClicks.toLocaleString()}</div><div class="l">קליקים על קישור</div></div>
+    <div class="stat-card"><div class="v">${clickToLpv?clickToLpv+'%':'—'}</div><div class="l">קליק→דף נחיתה</div></div>
+    <div class="stat-card"><div class="v">${tMeetings}</div><div class="l">פגישות (משויך)</div></div>
+    <div class="stat-card"><div class="v">${tMeetings?'₪'+nf(aCpm):'—'}</div><div class="l">עלות לפגישה</div></div>
+    <div class="stat-card"><div class="v">${tWon}</div><div class="l">לקוחות משלמים</div></div>
+    <div class="stat-card"><div class="v">${tWon?'₪'+nf(aCpw):'—'}</div><div class="l">עלות ללקוח</div></div>
+    <div class="stat-card"><div class="v">${tRevenue?aRoas.toFixed(2)+'x':'—'}</div><div class="l">ROAS</div></div>
   </div>`;
-  body.innerHTML=cards+h;
+  // מקרא + הסבר על העמודות התלויות בשיוך
+  let legend=`<div class="adinfo-box" style="margin-top:10px;line-height:1.7">
+    <b>איכות:</b> ${rankDot('above_average')} מעל הממוצע · ${rankDot('average')} ממוצע · ${rankDot('below_average_10')} מתחת · ${rankDot('UNKNOWN')} אין נתונים &nbsp;(איכות / מעורבות / המרות)<br>
+    <b>לידים (Meta)</b> מגיע ישירות מ-Meta — עובד תמיד. <b>משויכים / פגישות / נסגרו / ROAS</b> דורשים שיוך מודעה לכל ליד (UTM).
+    ${tMetaLeads&&!tMatched?'<br><span style="color:var(--orange)">⚠️ Meta מדווח לידים אבל אף ליד בדשבורד לא משויך למודעה — לכן עמודות המשפך ריקות. נדרש שיוך UTM.</span>':''}
+  </div>`;
+  body.innerHTML=cards+h+legend;
 }
 
 // ═══════════════════════════════════════════════
